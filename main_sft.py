@@ -35,6 +35,7 @@ model = AutoModelForCausalLM.from_pretrained(
     trust_remote_code=script_args.trust_remote_code,
     torch_dtype=torch_dtype,
 )
+print(f"Model loaded from {script_args.model_name_or_path}")
 
 if script_args.load_in_8bit or script_args.load_in_4bit:
     model = prepare_model_for_kbit_training(
@@ -79,7 +80,8 @@ for round in tqdm(range(fed_args.num_rounds)):
         if client not in clients_this_round:
             training_loss[client].append(-1)            # -1 is an indicator of not training
             continue
-
+        
+        print(f'Setting parameters for client {client}...')
         set_peft_model_state_dict(model, global_dict)   # sync the global model to the local model
 
         sub_dataset = get_dataset_this_round(local_datasets[client], round, fed_args, script_args)      # get the required sub-dataset for this round
@@ -101,6 +103,7 @@ for round in tqdm(range(fed_args.num_rounds)):
             global_auxiliary=global_auxiliary,
         )
 
+        print(f'Training client {client}...')
         results = trainer.train()
         training_loss[client].append(results.training_loss)
 

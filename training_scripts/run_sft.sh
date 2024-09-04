@@ -5,18 +5,18 @@ gradient_accumulation_steps=1
 seq_length=512
 num_clients=20
 sample_clients=2
-lora_r=32
-lora_alpha=64   # twice of lora_r
+lora_r=8
+lora_alpha=16   # twice of lora_r
 lr=5e-5
 
 # local_data_dir=""       # you may uncomment this line if your data is stored locally and include it in the python command
 dataset_name="vicgalle/alpaca-gpt4"
-dataset_sample=20000
-model_name_or_path="meta-llama/Llama-2-7b-hf"
-output_dir=./output
+dataset_sample=10000
+model_name_or_path="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+output_dir="output"
 
-gpu=2
-fed_alg="fedavg"
+gpu=1
+fed_alg="local1"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft.py \
  --learning_rate $lr \
@@ -33,7 +33,7 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft.py \
  --seq_length $seq_length \
  --peft_lora_r $lora_r \
  --peft_lora_alpha $lora_alpha \
- --use_peft \
- --load_in_8bit \
+ --use_peft True \
+ --load_in_8bit True \
  --output_dir $output_dir \
  --template "alpaca" \
