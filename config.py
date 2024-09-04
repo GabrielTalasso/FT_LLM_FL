@@ -22,7 +22,7 @@ class FedArguments:
     fedopt_eta: Optional[float] = field(default=1e-3, metadata={"help": "the global learning rate parameter of FedAdagrad, FedYogi and FedAdam"})
     fedopt_beta1: Optional[float] = field(default=0.9, metadata={"help": "the beta1 parameter of FedYogi and FedAdam"})
     fedopt_beta2: Optional[float] = field(default=0.99, metadata={"help": "the beta2 parameter of FedYogi and FedAdam"})
-    save_model_freq: Optional[int] = field(default=50, metadata={"help": "the frequency to save the model. 50 means save every 50 rounds"})
+    save_model_freq: Optional[int] = field(default=10, metadata={"help": "the frequency to save the model. 10 means save every 10 rounds"})
 
 @dataclass
 class ScriptArguments:
@@ -52,7 +52,7 @@ class ScriptArguments:
     save_steps: Optional[int] = field(
         default=1000, metadata={"help": "Number of updates steps before two checkpoint saves"}
     )
-    save_total_limit: Optional[int] = field(default=10, metadata={"help": "Limits total number of checkpoints."})
+    save_total_limit: Optional[int] = field(default=50, metadata={"help": "Limits total number of checkpoints."})
     push_to_hub: Optional[bool] = field(default=False, metadata={"help": "Push the model to HF Hub"})
     hub_model_id: Optional[str] = field(default=None, metadata={"help": "The name of the model on HF Hub"})
     gradient_checkpointing: Optional[bool] = field(default=True, metadata={"help": "Enable gradient checkpointing"})

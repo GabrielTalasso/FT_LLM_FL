@@ -11,12 +11,13 @@ lr=5e-5
 
 # local_data_dir=""       # you may uncomment this line if your data is stored locally and include it in the python command
 dataset_name="vicgalle/alpaca-gpt4"
+#dataset_name='dominguesm/alpaca-data-pt-br'
 dataset_sample=10000
 model_name_or_path="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 output_dir="output"
 
-gpu=1
-fed_alg="local1"
+gpu=0
+fed_alg="fedavg"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft.py \
  --learning_rate $lr \
@@ -34,6 +35,6 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft.py \
  --peft_lora_r $lora_r \
  --peft_lora_alpha $lora_alpha \
  --use_peft True \
- --load_in_8bit True \
+ --load_in_4bit True \
  --output_dir $output_dir \
  --template "alpaca" \
