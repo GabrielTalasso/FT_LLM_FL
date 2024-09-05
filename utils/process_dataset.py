@@ -27,8 +27,12 @@ def process_sft_dataset(dataset_name, dataset, dataset_sample):
     elif dataset_name in ["WizardLM/WizardLM_evol_instruct_70k"]:
         dataset = dataset.rename_column("output", "response")
     elif dataset_name in ["tatsu-lab/alpaca", "vicgalle/alpaca-gpt4",
-                          "gbharti/finance-alpaca", "dominguesm/alpaca-data-pt-br"]:
+                          "gbharti/finance-alpaca"]:
         dataset = dataset.map(alpaca_format, remove_columns=['input', 'output', 'text'], desc=f"Preprocessing {dataset_name} for unified format.")
+    
+    elif dataset_name in ["dominguesm/alpaca-data-pt-br"]:
+        dataset = dataset.map(alpaca_format, remove_columns=['input', 'output'], desc=f"Preprocessing {dataset_name} for unified format.")
+
     elif dataset_name in ["TIGER-Lab/MathInstruct"]:
         df = pd.DataFrame(dataset)
         df = df.drop_duplicates(subset=['instruction'])

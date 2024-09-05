@@ -91,6 +91,7 @@ requests==2.31.0
 rich==13.6.0
 safetensors==0.3.3
 scipy==1.11.2
+seaborn==0.13.2
 sentencepiece==0.1.99
 shtab==1.6.4
 six==1.16.0
