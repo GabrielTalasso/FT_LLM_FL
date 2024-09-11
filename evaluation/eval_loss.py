@@ -21,7 +21,7 @@ DEVICE = 'cuda'
 NUM_CHECKPOINTS = 20
 EVALSET_LEN = 50
 
-losses = []
+all_perplexities = []
 for i in [1,20]:#range(1, NUM_CHECKPOINTS+1):
 
     i = i*10
@@ -47,25 +47,40 @@ for i in [1,20]:#range(1, NUM_CHECKPOINTS+1):
 
     print('Calculating model predictions...')
     #mesure loss in the evaluation set
-    loss = 0
-    for i, example in tqdm(enumerate(eval_set)):
+    def calculate_perplexity(instruction, output):
+        # Combine instruction and output
+        combined = f"{instruction} [SEP] {output}"
         
-        instruction = template.format(example["instruction"], "", "")[:-1]
-        encoded = tokenizer(text = instruction, text_target = example['output'],
-                     return_tensors="pt",  padding='max_length', truncation=True, max_length=128)
-
-        input_ids = encoded.input_ids.to("cuda")
-        output_ids = encoded.labels.to("cuda") # Use the 'labels' field for target
-
-        #calculate loss
+        # Tokenize
+        encodings = tokenizer(combined, return_tensors="pt", truncation=True, max_length=512)
+        input_ids = encodings["input_ids"].to(DEVICE)
+        attention_mask = encodings["attention_mask"].to(DEVICE)
+    
+        # Calculate perplexity
         with torch.no_grad():
-            output = model(input_ids, labels=output_ids, )
-            loss += output.loss.item()
+            outputs = model(input_ids, attention_mask=attention_mask, labels=input_ids)
+            loss = outputs.loss
+            
+        return torch.exp(loss).item()
 
-    print('Loss: ', loss/EVALSET_LEN)
-    losses.append(loss/EVALSET_LEN)
+    model.eval()
+    perplexities = []
 
-#save losses
-np.save(PATH + '/eval_loss.npy', losses)
+    for sample in tqdm(dataset):
+        instruction = sample["instruction"] + sample["input"]
+
+        perplexity = calculate_perplexity(instruction, sample["output"])
+        perplexities.append(perplexity)
+
+    # 5. Calculate mean perplexity
+    mean_perplexity = np.mean(perplexities)
+    std_perplexity = np.std(perplexities)
+
+    print(f"Mean Perplexity: {mean_perplexity:.2f}")
+    print(f"Standard Deviation of Perplexity: {std_perplexity:.2f}")
+
+    all_perplexities.append((i, mean_perplexity, std_perplexity))
+
+np.save(PATH + '/perplexities.npy', all_perplexities)
 
 

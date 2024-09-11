@@ -23,6 +23,7 @@ class FedArguments:
     fedopt_beta1: Optional[float] = field(default=0.9, metadata={"help": "the beta1 parameter of FedYogi and FedAdam"})
     fedopt_beta2: Optional[float] = field(default=0.99, metadata={"help": "the beta2 parameter of FedYogi and FedAdam"})
     save_model_freq: Optional[int] = field(default=10, metadata={"help": "the frequency to save the model. 10 means save every 10 rounds"})
+    sim_round: Optional[int] = field(default=-1, metadata={"help": "Round to calculate the similarities. -1 means not calculate"})
 
 @dataclass
 class ScriptArguments:

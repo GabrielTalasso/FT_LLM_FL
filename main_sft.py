@@ -73,6 +73,9 @@ for round in tqdm(range(fed_args.num_rounds)):
 
     clients_this_round = get_clients_this_round(fed_args, round)
 
+    if round + 1 == fed_args.sim_round: #return all clients
+        clients_this_round = list(range(fed_args.num_clients))
+
     print(f">> ==================== Round {round+1} : {clients_this_round} ====================")
     
     for client in range(fed_args.num_clients):
@@ -112,6 +115,10 @@ for round in tqdm(range(fed_args.num_rounds)):
             auxiliary_model_list[client], auxiliary_delta_dict[client] = trainer.get_auxiliary_param()
 
         local_dict_list[client] = copy.deepcopy(get_peft_model_state_dict(model))   # copy is needed!
+
+        # ===== Save the model =====
+        if (round+1) == fed_args.sim_round:
+            trainer.save_model(os.path.join(script_args.output_dir, f"clients_adapters/checkpoint-{round+1}_client{client}"))
 
     # ===== Server aggregates the local models =====
     global_dict, global_auxiliary = global_aggregate(
