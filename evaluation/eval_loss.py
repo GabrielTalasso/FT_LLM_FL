@@ -14,9 +14,9 @@ from utils.template import TEMPLATE_DICT
 #configs
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 template = TEMPLATE_DICT['alpaca'][0]
-MODEL_NAME = 'TinyLlama/TinyLlama-1.1B-Chat-v1.0'
+MODEL_NAME = 'TinyLlama/TinyLlama_v1.1'
 DATASET_NAME = 'dominguesm/alpaca-data-pt-br'
-PATH = 'output/alpaca-data-pt-br_10000_local1_c20s2_i10_b16a1_l512_r8a16_20240905071418'
+PATH = 'output/alpaca-data-pt-br_30000_fedavg_c60s2_i10_b16a1_l512_r8a16_20240910094609'
 DEVICE = 'cuda'
 NUM_CHECKPOINTS = 20
 EVALSET_LEN = 50

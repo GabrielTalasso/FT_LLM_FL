@@ -15,6 +15,12 @@ def get_dataset(dataset_name, local_data_dir=None):
     elif dataset_name == "HuggingFaceH4/ultrafeedback_binarized":
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
         dataset = load_dataset(dataset_name, split="train_sft")
+
+    elif dataset_name in ["CohereForAI/aya_dataset"]:
+        languages = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
+        dataset = load_dataset(dataset_name, split="train")
+        print('Start filtering languages')
+        dataset = dataset.filter(lambda x: x['language'] in languages)
     else:
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
         dataset = load_dataset(dataset_name, split="train")
@@ -32,6 +38,10 @@ def process_sft_dataset(dataset_name, dataset, dataset_sample):
     
     elif dataset_name in ["dominguesm/alpaca-data-pt-br"]:
         dataset = dataset.map(alpaca_format, remove_columns=['input', 'output'], desc=f"Preprocessing {dataset_name} for unified format.")
+    
+    elif dataset_name in ["CohereForAI/aya_dataset"]:
+        dataset = dataset.map(alpaca_format_aya, remove_columns=['inputs', 'targets', 'language_code', 'annotation_type', 'user_id'],
+                              desc=f"Preprocessing {dataset_name} for unified format.")
 
     elif dataset_name in ["TIGER-Lab/MathInstruct"]:
         df = pd.DataFrame(dataset)
@@ -67,6 +77,11 @@ def alpaca_format(example):
     example["response"] = example['output']
     return example
 
+def alpaca_format_aya(example):
+    example["instruction"] = example['inputs']
+    example["response"] = example['targets']
+
+    return example
 
 def process_dpo_dataset(dataset_name, dataset, template_name, dataset_sample):
     if dataset_name in ["Anthropic/hh-rlhf"]:

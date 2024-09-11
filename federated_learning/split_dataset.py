@@ -6,6 +6,17 @@ def split_dataset(fed_args, script_args, dataset):
     if fed_args.split_strategy == "iid":
         for i in range(fed_args.num_clients):
             local_datasets.append(dataset.shard(fed_args.num_clients, i))
+
+    if fed_args.split_strategy == "language_clusters":
+        languages = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
+        n_clients_in_cluster = fed_args.num_clients // len(languages)
+
+        for i in range(fed_args.num_clients):
+            language = languages[i // n_clients_in_cluster]
+            cluster_dataset = dataset.filter(lambda x: x['language'] == language)
+            cluster_dataset = cluster_dataset.shuffle(seed=script_args.seed)
+
+            local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i % n_clients_in_cluster))
     
     return local_datasets
 
