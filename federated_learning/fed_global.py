@@ -1,5 +1,6 @@
 import random
 import torch
+from federated_learning.fed_clustered import calculate_similarity, make_clusters
 
 def get_clients_this_round(fed_args, round):
     if (fed_args.fed_alg).startswith('local'):
@@ -12,7 +13,11 @@ def get_clients_this_round(fed_args, round):
             clients_this_round = sorted(random.sample(range(fed_args.num_clients), fed_args.sample_clients))
     return clients_this_round
 
-def global_aggregate(fed_args, global_dict, local_dict_list, sample_num_list, clients_this_round, round_idx, proxy_dict=None, opt_proxy_dict=None, auxiliary_info=None):
+def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
+                     sample_num_list, clients_this_round, round_idx,
+                     proxy_dict=None, opt_proxy_dict=None, auxiliary_info=None,
+                     round = None, idx = None):
+    
     sample_this_round = sum([sample_num_list[client] for client in clients_this_round])
     global_auxiliary = None
 
@@ -54,6 +59,72 @@ def global_aggregate(fed_args, global_dict, local_dict_list, sample_num_list, cl
             opt_proxy_dict[key] = fed_args.fedopt_beta2*param + (1-fed_args.fedopt_beta2)*torch.square(proxy_dict[key])
             global_dict[key] += fed_args.fedopt_eta * torch.div(proxy_dict[key], torch.sqrt(opt_proxy_dict[key])+fed_args.fedopt_tau)
 
+    elif fed_args.fed_alg == 'clustered':
+
+        if round < fed_args.sim_round: # Normal dataset-size-based aggregation 
+            for key in global_dict.keys():
+              global_dict[key] = sum([local_dict_list[client][key] * sample_num_list[client] / sample_this_round for client in clients_this_round])
+        
+        elif round == fed_args.sim_round:
+            
+            n_clusters = fed_args.n_clusters
+
+            # Calculate similarity matrix between clients adapters ----------------
+            similarity_A, similarity_B = calculate_similarity(path = script_args.output_dir,
+                                                              n_clients = fed_args.num_clients,
+                                                              round = round)
+
+
+            # Make clusters using hierarchical clustering ------------------------
+            idx = make_clusters(similarity_matrix = similarity_B,
+                           n_clusters = n_clusters,
+                           round = round,
+                           save_dendrogram = True, 
+                           path = script_args.output_dir)
+            
+            # Separate models into clusters -------------------------------------
+            clusters_models = {}
+            for cluster in range(n_clusters):
+
+                if cluster not in clusters_models.keys():
+                    clusters_models[cluster] = []
+                clusters_models[cluster].append([local_dict_list[client] for client in list(range(fed_args.num_clients)) if idx[client] == cluster+1])
+
+            # Aggregate models within each cluster ------------------------------
+            cluster_agg_models = [] 
+
+            for cluster in range(n_clusters):
+                cluster_dict = {}
+                for key in global_dict.keys():
+                    #print(key, cluster, len(clusters_models[cluster]), len(clusters_models[cluster][0]), len(clusters_models[cluster][0][0]))
+                    cluster_dict[key] = sum([model[key] for model in clusters_models[cluster][0]]) / len(clusters_models[cluster][0])
+                cluster_agg_models.append(cluster_dict)
+
+            return cluster_agg_models, global_auxiliary, idx
+        
+        elif round > fed_args.sim_round:
+
+            n_clusters = fed_args.n_clusters
+
+            # Separate models into clusters -------------------------------------
+            clusters_models = {}
+            for cluster in range(n_clusters):
+
+                if cluster not in clusters_models.keys():
+                    clusters_models[cluster] = []
+                clusters_models[cluster].append([local_dict_list[client] for client in list(range(fed_args.num_clients)) if idx[client] == cluster+1])
+
+            # Aggregate models within each cluster ------------------------------
+            cluster_agg_models = [] 
+
+            for cluster in range(n_clusters):
+                cluster_dict = {}
+                for key in global_dict[cluster].keys():
+                    cluster_dict[key] = sum([model[key] for model in clusters_models[cluster][0]]) / len(clusters_models[cluster][0])
+                cluster_agg_models.append(cluster_dict)
+
+            return cluster_agg_models, global_auxiliary, idx
+                
     else:   # Normal dataset-size-based aggregation 
         for key in global_dict.keys():
             global_dict[key] = sum([local_dict_list[client][key] * sample_num_list[client] / sample_this_round for client in clients_this_round])

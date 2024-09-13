@@ -41,3 +41,4 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft.py \
  --output_dir $output_dir \
  --template "alpaca" \
  --sim_round 50 \
+ --split_strategy "language_clusters" \

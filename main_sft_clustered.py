@@ -68,6 +68,7 @@ data_collator = DataCollatorForCompletionOnlyLM(response_template_ids, tokenizer
 
 # ===== Start federated training =====
 training_loss = [[] for i in range(fed_args.num_clients)]
+idx = None
 
 for round in tqdm(range(fed_args.num_rounds)):
 
@@ -85,7 +86,12 @@ for round in tqdm(range(fed_args.num_rounds)):
             continue
         
         print(f'Setting parameters for client {client}...')
-        set_peft_model_state_dict(model, global_dict)   # sync the global model to the local model
+
+        if round > fed_args.sim_round:
+            set_peft_model_state_dict(model, global_dict[idx[client] - 1])
+
+        else:
+            set_peft_model_state_dict(model, global_dict)   # sync the global model to the local model
 
         sub_dataset = get_dataset_this_round(local_datasets[client], round, fed_args, script_args)      # get the required sub-dataset for this round
         new_lr = cosine_learning_rate(round, fed_args.num_rounds, script_args.learning_rate, 1e-6)      # manually schedule the learning rate
@@ -121,17 +127,35 @@ for round in tqdm(range(fed_args.num_rounds)):
             trainer.save_model(os.path.join(script_args.output_dir, f"clients_adapters/checkpoint-{round+1}_client{client}"))
 
     # ===== Server aggregates the local models =====
-    global_dict, global_auxiliary = global_aggregate(
-        fed_args, script_args, global_dict, local_dict_list, sample_num_list, \
-        clients_this_round, round, proxy_dict=proxy_dict, \
-        opt_proxy_dict=opt_proxy_dict,
-        auxiliary_info=(global_auxiliary, auxiliary_delta_dict),
-        round = round
-    )
-    set_peft_model_state_dict(model, global_dict)   # Update global model
 
-    # ===== Save the model =====
-    if (round+1) % fed_args.save_model_freq == 0:
-        trainer.save_model(os.path.join(script_args.output_dir, f"checkpoint-{round+1}"))
+    if round < fed_args.sim_round:
+        global_dict, global_auxiliary = global_aggregate(
+            fed_args, script_args, global_dict, local_dict_list, sample_num_list, \
+            clients_this_round, round, proxy_dict=proxy_dict, \
+            opt_proxy_dict=opt_proxy_dict,
+            auxiliary_info=(global_auxiliary, auxiliary_delta_dict),
+            round = round
+        )
+
+        set_peft_model_state_dict(model, global_dict)   # Update global model
+
+        # ===== Save the model =====
+        if (round+1) % fed_args.save_model_freq == 0:
+            trainer.save_model(os.path.join(script_args.output_dir, f"checkpoint-{round+1}"))
+        
+        np.save(os.path.join(script_args.output_dir, "training_loss.npy"), np.array(training_loss))
     
-    np.save(os.path.join(script_args.output_dir, "training_loss.npy"), np.array(training_loss))
+    if round >= fed_args.sim_round:
+        global_dict, global_auxiliary, idx = global_aggregate(
+            fed_args, script_args, global_dict, local_dict_list, sample_num_list, \
+            clients_this_round, round, proxy_dict=proxy_dict, \
+            opt_proxy_dict=opt_proxy_dict,
+            auxiliary_info=(global_auxiliary, auxiliary_delta_dict),
+            round = round, idx = idx
+        )
+
+        for cluster in range(fed_args.n_clusters):
+            set_peft_model_state_dict(model, global_dict[cluster])
+            trainer.save_model(os.path.join(script_args.output_dir, f"cluster_{cluster}_checkpoint-{round+1}"))
+    
+        np.save(os.path.join(script_args.output_dir, "training_loss.npy"), np.array(training_loss))

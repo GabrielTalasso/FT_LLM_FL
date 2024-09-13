@@ -22,8 +22,9 @@ class FedArguments:
     fedopt_eta: Optional[float] = field(default=1e-3, metadata={"help": "the global learning rate parameter of FedAdagrad, FedYogi and FedAdam"})
     fedopt_beta1: Optional[float] = field(default=0.9, metadata={"help": "the beta1 parameter of FedYogi and FedAdam"})
     fedopt_beta2: Optional[float] = field(default=0.99, metadata={"help": "the beta2 parameter of FedYogi and FedAdam"})
-    save_model_freq: Optional[int] = field(default=10, metadata={"help": "the frequency to save the model. 10 means save every 10 rounds"})
+    save_model_freq: Optional[int] = field(default=1, metadata={"help": "the frequency to save the model. 10 means save every 10 rounds"})
     sim_round: Optional[int] = field(default=-1, metadata={"help": "Round to calculate the similarities. -1 means not calculate"})
+    n_clusters: Optional[int] = field(default=5, metadata={"help": "the number of clusters for the clustered algorithm"})
 
 @dataclass
 class ScriptArguments:
@@ -64,7 +65,7 @@ class ScriptArguments:
     local_data_dir: Optional[str] = field(default=None, metadata={"help": "the local data directory if you want to use downloaded data"})
 
 parser = HfArgumentParser((ScriptArguments, FedArguments))
-script_args, fed_args = parser.parse_args_into_dataclasses()
+script_args, fed_args, remanining = parser.parse_args_into_dataclasses(return_remaining_strings=True)
 
 # ===== Define the LoraConfig =====
 if script_args.use_peft:
