@@ -112,7 +112,11 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
 
                 if cluster not in clusters_models.keys():
                     clusters_models[cluster] = []
-                clusters_models[cluster].append([local_dict_list[client] for client in list(range(fed_args.num_clients)) if idx[client] == cluster+1])
+                clusters_models[cluster].append([local_dict_list[client] for client in clients_this_round if idx[client] == cluster+1]) #aggregate only selected clients
+
+                if clusters_models[cluster] == [[]]:
+                    clusters_models[cluster] = []
+                    clusters_models[cluster].append([global_dict[cluster]]) #if no client selected in that cluster, use the previous global model
 
             # Aggregate models within each cluster ------------------------------
             cluster_agg_models = [] 
