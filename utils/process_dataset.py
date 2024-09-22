@@ -4,7 +4,7 @@ import pandas as pd
 from .conversation import get_conv_template
 from functools import partial
 
-def get_dataset(dataset_name, local_data_dir=None):
+def get_dataset(dataset_name, local_data_dir=None, train_split = 1):
 
     if dataset_name in ["gsm8k"]:
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
@@ -21,9 +21,17 @@ def get_dataset(dataset_name, local_data_dir=None):
         dataset = load_dataset(dataset_name, split="train")
         print('Start filtering languages')
         dataset = dataset.filter(lambda x: x['language'] in languages)
+
     else:
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
         dataset = load_dataset(dataset_name, split="train")
+    
+    if train_split < 1:
+            dataset_splited = dataset.train_test_split(test_size= 1-train_split, seed=0)
+            dataset_train = dataset_splited['train']
+            dataset_test = dataset_splited['test']
+            print(f"Dataset Splited into TRAIN: {len(dataset_train)} and TEST: {len(dataset_test)}")
+            return dataset_train, dataset_test
 
     return dataset
 

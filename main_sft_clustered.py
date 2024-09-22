@@ -18,7 +18,11 @@ save_config(script_args, fed_args)
 print(script_args, fed_args)
 
 # ===== Load the dataset =====
-dataset = get_dataset(script_args.dataset_name, script_args.local_data_dir)
+if script_args.train_split < 1:
+    dataset, dataset_test = get_dataset(script_args.dataset_name, script_args.local_data_dir, script_args.train_split)
+else:
+    dataset = get_dataset(script_args.dataset_name, script_args.local_data_dir)
+
 dataset = process_sft_dataset(script_args.dataset_name, dataset, script_args.dataset_sample)
 
 # ===== Split the dataset into clients =====
