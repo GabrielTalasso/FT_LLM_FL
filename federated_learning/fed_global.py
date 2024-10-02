@@ -1,4 +1,5 @@
 import random
+import numpy as np
 import torch
 from federated_learning.fed_clustered import calculate_similarity, make_clusters
 
@@ -59,7 +60,7 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
             opt_proxy_dict[key] = fed_args.fedopt_beta2*param + (1-fed_args.fedopt_beta2)*torch.square(proxy_dict[key])
             global_dict[key] += fed_args.fedopt_eta * torch.div(proxy_dict[key], torch.sqrt(opt_proxy_dict[key])+fed_args.fedopt_tau)
 
-    elif fed_args.fed_alg == 'clustered':
+    elif fed_args.fed_alg in ['clustered', 'clustered_random']:
 
         if round < fed_args.sim_round: # Normal dataset-size-based aggregation 
             for key in global_dict.keys():
@@ -76,11 +77,17 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
 
 
             # Make clusters using hierarchical clustering ------------------------
-            idx = make_clusters(similarity_matrix = similarity_B,
-                           n_clusters = n_clusters,
-                           round = round,
-                           save_dendrogram = True, 
-                           path = script_args.output_dir)
+            if fed_args.fed_alg == 'clustered':
+                idx = make_clusters(similarity_matrix = similarity_B,
+                            n_clusters = n_clusters,
+                            round = round,
+                            save_dendrogram = True, 
+                            path = script_args.output_dir)
+            
+            elif fed_args.fed_alg == 'clustered_random':
+                idx = np.array([random.randint(1, n_clusters) for _ in range(fed_args.num_clients)])
+                with open(script_args.output_dir + '/idx.txt', 'w') as f:
+                    f.write(str(idx))
             
             # Separate models into clusters -------------------------------------
             clusters_models = {}
