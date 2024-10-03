@@ -120,7 +120,7 @@ df = pd.DataFrame(columns=['model', 'language', 'ppl'])
 
 for language in languages:
     for path in paths:
-        
+
         model, tokenizer = load_model(path, MODEL_NAME, DEVICE)
         test_dataset = load_eval_data(DATASET_NAME, EVALSET_LEN, language)
 
@@ -130,7 +130,7 @@ for language in languages:
         round = path.split('-')[-1]
         print(f'Perplexity {model_eval}: {perplexity}')
 
-        results.append({'model': model_eval, 'round': round, 'language': language[0], 'ppl': perplexity})
+        results.append({'model': model_eval, 'round': round, 'language': language, 'ppl': perplexity})
 
     df = pd.DataFrame(results)
     df.to_csv('perplexity.csv', index=False)
