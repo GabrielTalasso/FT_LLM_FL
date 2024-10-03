@@ -92,26 +92,31 @@ def calculate_perplexity(model, tokenizer, dataset, max_length=512):
 
     return torch.exp(torch.tensor(total_loss/ len(dataset))).item()
 
-base_path = 'output/aya_dataset_400000_clustered_c20s2_i10_b16a1_l512_r8a16_20241002153817'
+## CLUSTERED RESULTS
+#base_path = 'output/aya_dataset_400000_clustered_c20s2_i10_b16a1_l512_r8a16_20241002153817'
+#
+#paths = [base_path + '/checkpoint-1',
+#         base_path + '/checkpoint-10',
+#         base_path + '/checkpoint-50',
+#         base_path + '/cluster_0_checkpoint-100',
+#         base_path + '/cluster_1_checkpoint-100',
+#         base_path + '/cluster_2_checkpoint-100',
+#         base_path + '/cluster_3_checkpoint-100',
+#         base_path + '/cluster_4_checkpoint-100',
+#         base_path + '/cluster_0_checkpoint-150',
+#         base_path + '/cluster_1_checkpoint-150',
+#         base_path + '/cluster_2_checkpoint-150',
+#         base_path + '/cluster_3_checkpoint-150',
+#         base_path + '/cluster_4_checkpoint-150',
+#         base_path + '/cluster_0_checkpoint-200',
+#         base_path + '/cluster_1_checkpoint-200',
+#         base_path + '/cluster_2_checkpoint-200',
+#         base_path + '/cluster_3_checkpoint-200',
+#         base_path + '/cluster_4_checkpoint-200']
 
-paths = [base_path + '/checkpoint-1',
-         base_path + '/checkpoint-10',
-         base_path + '/checkpoint-50',
-         base_path + '/cluster_0_checkpoint-100',
-         base_path + '/cluster_1_checkpoint-100',
-         base_path + '/cluster_2_checkpoint-100',
-         base_path + '/cluster_3_checkpoint-100',
-         base_path + '/cluster_4_checkpoint-100',
-         base_path + '/cluster_0_checkpoint-150',
-         base_path + '/cluster_1_checkpoint-150',
-         base_path + '/cluster_2_checkpoint-150',
-         base_path + '/cluster_3_checkpoint-150',
-         base_path + '/cluster_4_checkpoint-150',
-         base_path + '/cluster_0_checkpoint-200',
-         base_path + '/cluster_1_checkpoint-200',
-         base_path + '/cluster_2_checkpoint-200',
-         base_path + '/cluster_3_checkpoint-200',
-         base_path + '/cluster_4_checkpoint-200']
+##FEDAVG RESULTS
+base_path = 'output/aya_dataset_400000_clustered_c20s2_i10_b16a1_l512_r8a16_20241003072545'
+paths = [base_path + '/cluster_0_checkpoint-100']
 
 languages  = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
 
@@ -133,6 +138,6 @@ for language in languages:
         results.append({'model': model_eval, 'round': round, 'language': language, 'ppl': perplexity})
 
     df = pd.DataFrame(results)
-    df.to_csv('perplexity.csv', index=False)
+    df.to_csv('perplexity_federated.csv', index=False)
 
 
