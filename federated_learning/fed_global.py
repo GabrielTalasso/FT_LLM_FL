@@ -85,7 +85,7 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
                             path = script_args.output_dir)
             
             elif fed_args.fed_alg == 'clustered_random':
-                idx = np.array([random.randint(1, n_clusters) for _ in range(fed_args.num_clients)])
+                idx = np.random.randint(1, n_clusters+1, size=fed_args.num_clients)
                 with open(script_args.output_dir + '/idx.txt', 'w') as f:
                     f.write(str(idx))
             

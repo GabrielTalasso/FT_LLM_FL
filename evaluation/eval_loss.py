@@ -10,77 +10,129 @@ from datasets import load_dataset
 from accelerate import Accelerator
 from torch.utils.data import DataLoader
 from utils.template import TEMPLATE_DICT
+import json
+import pandas as pd
+import torch
+from tqdm import tqdm
+import numpy as np
 
-#configs
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 template = TEMPLATE_DICT['alpaca'][0]
 MODEL_NAME = 'TinyLlama/TinyLlama_v1.1'
-DATASET_NAME = 'dominguesm/alpaca-data-pt-br'
-PATH = 'output/alpaca-data-pt-br_30000_fedavg_c60s2_i10_b16a1_l512_r8a16_20240910094609'
-DEVICE = 'cuda'
-NUM_CHECKPOINTS = 20
-EVALSET_LEN = 50
+DATASET_NAME = "CohereForAI/aya_dataset"
+DEVICE = 'cuda:0'
+EVALSET_LEN = 10000
 
-all_perplexities = []
-for i in [1,20]:#range(1, NUM_CHECKPOINTS+1):
-
-    i = i*10
-    print('-------------------------------------- Evaluation checkpoint: Round ', i)
-
-    path = PATH + f'/checkpoint-{i}'
+def load_model(path, MODEL_NAME, DEVICE):
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.float16,
-                                                 quantization_config = BitsAndBytesConfig(
+                                                    quantization_config = BitsAndBytesConfig(
                                                                             load_in_4bit=True,
                                                                             bnb_4bit_use_double_quant=True,
                                                                             bnb_4bit_quant_type="nf4",
                                                                             bnb_4bit_compute_dtype=torch.bfloat16,
                                                                         ),
-                                                 device_map={"": Accelerator().local_process_index},)
-    
+                                                    device_map={"": Accelerator().local_process_index})
+
     model = PeftModel.from_pretrained(model, path).to(DEVICE)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, device=DEVICE, use_fast=False, padding_side="right")
+    tokenizer.pad_token = tokenizer.unk_token
 
-    #sample a evaluation set
-    dataset = load_dataset(DATASET_NAME)['train']
-    dataset = dataset.shuffle(seed = 0)
-    eval_set = dataset.select(range(EVALSET_LEN))
+    return model, tokenizer
 
-    print('Calculating model predictions...')
-    #mesure loss in the evaluation set
-    def calculate_perplexity(instruction, output):
-        # Combine instruction and output
-        combined = f"{instruction} [SEP] {output}"
-        
-        # Tokenize
-        encodings = tokenizer(combined, return_tensors="pt", truncation=True, max_length=512)
-        input_ids = encodings["input_ids"].to(DEVICE)
-        attention_mask = encodings["attention_mask"].to(DEVICE)
+def load_eval_data(DATASET_NAME, EVALSET_LEN, languages):
     
-        # Calculate perplexity
-        with torch.no_grad():
-            outputs = model(input_ids, attention_mask=attention_mask, labels=input_ids)
-            loss = outputs.loss
-            
-        return torch.exp(loss).item()
+    dataset = load_dataset(DATASET_NAME, split="train", )
+    dataset = dataset.filter(lambda x: x['language'] in ['English', 'Swedish', 'German', 'Portuguese', 'Spanish'])
+    dataset_splited = dataset.train_test_split(test_size= 0.2, seed=0)
+    dataset_test = dataset_splited['test']
+    dataset = dataset_test.filter(lambda x: x['language'] in languages)
+    dataset_len = min(len(dataset), EVALSET_LEN)
+    dataset = dataset.select(range(dataset_len))
 
+    return dataset
+
+def format_instruction(instruction, response, eos):
+    template = """Below is an instruction that describes a task. Write a response that appropriately completes the request.
+
+### Instruction:
+{} 
+
+### Response: {}{}"""
+
+    return template.format(instruction, response, eos)
+
+def calculate_perplexity(model, tokenizer, dataset, max_length=512):
     model.eval()
-    perplexities = []
+    total_loss = 0
+    total_length = 0
 
-    for sample in tqdm(dataset):
-        instruction = sample["instruction"] + sample["input"]
+    with torch.no_grad():
+        for item in tqdm(dataset):
+            # Format the input as an instruction
+            input_text = format_instruction(item['inputs'], item['targets'],'')
 
-        perplexity = calculate_perplexity(instruction, sample["output"])
-        perplexities.append(perplexity)
+            response = item['targets']
+            #response = f'\n### Response: {response}'
+            
+            encodings = tokenizer(input_text, return_tensors='pt', truncation=True, max_length=max_length)
+            response_encodings = tokenizer(response, return_tensors='pt', truncation=True, max_length=max_length)
 
-    # 5. Calculate mean perplexity
-    mean_perplexity = np.mean(perplexities)
-    std_perplexity = np.std(perplexities)
+            response_len = response_encodings.input_ids.size(1)
 
-    print(f"Mean Perplexity: {mean_perplexity:.2f}")
-    print(f"Standard Deviation of Perplexity: {std_perplexity:.2f}")
+            input_ids = encodings.input_ids.to(model.device)
+            target_ids = input_ids.clone()
+            target_ids[:, :-response_len] = -100
 
-    all_perplexities.append((i, mean_perplexity, std_perplexity))
+            #print(tokenizer.decode(target_ids[0, -response_len:]))
+            
+            outputs = model(input_ids, labels=target_ids)
+            loss = outputs.loss
 
-np.save(PATH + '/perplexities.npy', all_perplexities)
+            
+            total_loss += loss.item()
+
+    return torch.exp(torch.tensor(total_loss/ len(dataset))).item()
+
+base_path = 'output/aya_dataset_400000_clustered_c20s2_i10_b16a1_l512_r8a16_20241002153817'
+
+paths = [base_path + '/checkpoint-1',
+         base_path + '/checkpoint-10',
+         base_path + '/checkpoint-50',
+         base_path + '/cluster_0_checkpoint-100',
+         base_path + '/cluster_1_checkpoint-100',
+         base_path + '/cluster_2_checkpoint-100',
+         base_path + '/cluster_3_checkpoint-100',
+         base_path + '/cluster_4_checkpoint-100',
+         base_path + '/cluster_0_checkpoint-150',
+         base_path + '/cluster_1_checkpoint-150',
+         base_path + '/cluster_2_checkpoint-150',
+         base_path + '/cluster_3_checkpoint-150',
+         base_path + '/cluster_4_checkpoint-150',
+         base_path + '/cluster_0_checkpoint-200',
+         base_path + '/cluster_1_checkpoint-200',
+         base_path + '/cluster_2_checkpoint-200',
+         base_path + '/cluster_3_checkpoint-200',
+         base_path + '/cluster_4_checkpoint-200']
+
+languages  = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
+
+results = []
+df = pd.DataFrame(columns=['model', 'language', 'ppl'])
+
+for language in languages:
+    for path in paths:
+        
+        model, tokenizer = load_model(path, MODEL_NAME, DEVICE)
+        test_dataset = load_eval_data(DATASET_NAME, EVALSET_LEN, language)
+
+        perplexity = calculate_perplexity(model, tokenizer, test_dataset, max_length=512)
+
+        model_eval = path.split('/')[-1]
+        round = path.split('-')[-1]
+        print(f'Perplexity {model_eval}: {perplexity}')
+
+        results.append({'model': model_eval, 'round': round, 'language': language[0], 'ppl': perplexity})
+
+    df = pd.DataFrame(results)
+    df.to_csv('perplexity.csv', index=False)
 
 

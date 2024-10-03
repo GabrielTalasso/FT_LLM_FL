@@ -20,7 +20,7 @@ model_name_or_path="TinyLlama/TinyLlama_v1.1"
 output_dir="output"
 
 gpu='1'
-fed_alg="clustered_random"
+fed_alg="clustered"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
  --learning_rate $lr \
@@ -43,6 +43,6 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
  --output_dir $output_dir \
  --template "alpaca" \
  --sim_round 50 \
- --n_clusters 5 \
+ --n_clusters 1 \
  --split_strategy "language_clusters" \
  --train_split 0.8 \
