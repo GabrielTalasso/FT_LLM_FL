@@ -1,6 +1,0 @@
-model,round,language,ppl
-cluster_0_checkpoint-100,100,English,5.303474426269531
-cluster_0_checkpoint-100,100,Swedish,5.555712699890137
-cluster_0_checkpoint-100,100,German,6.173223495483398
-cluster_0_checkpoint-100,100,Portuguese,5.465869903564453
-cluster_0_checkpoint-100,100,Spanish,5.390769958496094

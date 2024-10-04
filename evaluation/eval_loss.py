@@ -115,8 +115,10 @@ def calculate_perplexity(model, tokenizer, dataset, max_length=512):
 #         base_path + '/cluster_4_checkpoint-200']
 
 ##FEDAVG RESULTS
-base_path = 'output/aya_dataset_400000_clustered_c20s2_i10_b16a1_l512_r8a16_20241003072545'
-paths = [base_path + '/cluster_0_checkpoint-100']
+base_path = 'output/aya_dataset_400000_clustered_c20s2_i10_b16a1_l512_r8a16_20241003162141'
+paths = [base_path + '/cluster_0_checkpoint-100',
+         base_path + '/cluster_0_checkpoint-150',
+         base_path + '/cluster_0_checkpoint-200']
 
 languages  = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
 

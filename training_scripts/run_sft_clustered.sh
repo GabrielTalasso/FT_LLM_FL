@@ -19,7 +19,7 @@ dataset_sample=400000
 model_name_or_path="TinyLlama/TinyLlama_v1.1"
 output_dir="output"
 
-gpu='1'
+gpu='0'
 fed_alg="clustered"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \

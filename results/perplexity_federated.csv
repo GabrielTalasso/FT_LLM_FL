@@ -1,0 +1,16 @@
+model,round,language,ppl
+cluster_0_checkpoint-100,100,English,5.308902263641357
+cluster_0_checkpoint-150,150,English,5.260531425476074
+cluster_0_checkpoint-200,200,English,5.267976760864258
+cluster_0_checkpoint-100,100,Swedish,5.586320877075195
+cluster_0_checkpoint-150,150,Swedish,5.497325420379639
+cluster_0_checkpoint-200,200,Swedish,5.501448154449463
+cluster_0_checkpoint-100,100,German,6.172384738922119
+cluster_0_checkpoint-150,150,German,6.110233783721924
+cluster_0_checkpoint-200,200,German,6.085468292236328
+cluster_0_checkpoint-100,100,Portuguese,5.477377414703369
+cluster_0_checkpoint-150,150,Portuguese,5.372951507568359
+cluster_0_checkpoint-200,200,Portuguese,5.384260177612305
+cluster_0_checkpoint-100,100,Spanish,5.390384197235107
+cluster_0_checkpoint-150,150,Spanish,5.332647800445557
+cluster_0_checkpoint-200,200,Spanish,5.3263068199157715
