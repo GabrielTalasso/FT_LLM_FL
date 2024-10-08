@@ -5,7 +5,7 @@ batch_size=16
 gradient_accumulation_steps=1
 seq_length=512
 num_clients=20
-sample_clients=2
+sample_clients=20
 lora_r=8
 lora_alpha=16   # twice of lora_r
 lr=5e-5
@@ -42,7 +42,7 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
  --load_in_4bit True \
  --output_dir $output_dir \
  --template "alpaca" \
- --sim_round 50 \
- --n_clusters 1 \
+ --sim_round 2 \
+ --n_clusters 20 \
  --split_strategy "language_clusters" \
  --train_split 0.8 \

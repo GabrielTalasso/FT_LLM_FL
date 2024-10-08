@@ -1,0 +1,10 @@
+model,round,language,ppl
+cluster_0_checkpoint-100,100,English,1.078316569328308
+cluster_0_checkpoint-150,150,English,1.076202154159546
+cluster_0_checkpoint-200,200,English,1.0769559144973755
+cluster_0_checkpoint-100,100,Swedish,1.0385009050369263
+cluster_0_checkpoint-150,150,Swedish,1.0379514694213867
+cluster_0_checkpoint-200,200,Swedish,1.0379704236984253
+cluster_0_checkpoint-100,100,German,1.0337309837341309
+cluster_0_checkpoint-150,150,German,1.033403992652893
+cluster_0_checkpoint-200,200,German,1.033116102218628

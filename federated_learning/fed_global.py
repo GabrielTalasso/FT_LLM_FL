@@ -2,6 +2,7 @@ import random
 import numpy as np
 import torch
 from federated_learning.fed_clustered import calculate_similarity, make_clusters
+from federated_learning.fed_personalized import get_adapter
 
 def get_clients_this_round(fed_args, round):
     if (fed_args.fed_alg).startswith('local'):
@@ -135,6 +136,20 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
                 cluster_agg_models.append(cluster_dict)
 
             return cluster_agg_models, global_auxiliary, idx
+    
+    elif fed_args.fed_alg == 'personalized':
+        
+        A, B = [], []
+        for c in clients_this_round:
+            a, b = get_adapter(path = script_args.output_dir, client = c, round = round, layer = 'all')
+            A.append(a)
+            B.append(b)
+
+
+
+        #not implemented yet =(
+
+
                 
     else:   # Normal dataset-size-based aggregation 
         for key in global_dict.keys():

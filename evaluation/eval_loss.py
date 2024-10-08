@@ -64,6 +64,7 @@ def calculate_perplexity(model, tokenizer, dataset, max_length=512):
     model.eval()
     total_loss = 0
     total_length = 0
+    losses = []
 
     with torch.no_grad():
         for item in tqdm(dataset):
@@ -88,9 +89,10 @@ def calculate_perplexity(model, tokenizer, dataset, max_length=512):
             loss = outputs.loss
 
             
+            #losses.append(loss)
             total_loss += loss.item()
 
-    return torch.exp(torch.tensor(total_loss/ len(dataset))).item()
+    return torch.exp(torch.tensor(total_loss/ len(dataset))).item() #torch.exp(torch.stack(losses).mean())
 
 ## CLUSTERED RESULTS
 #base_path = 'output/aya_dataset_400000_clustered_c20s2_i10_b16a1_l512_r8a16_20241002153817'
@@ -114,11 +116,17 @@ def calculate_perplexity(model, tokenizer, dataset, max_length=512):
 #         base_path + '/cluster_3_checkpoint-200',
 #         base_path + '/cluster_4_checkpoint-200']
 
-##FEDAVG RESULTS
+###FEDAVG RESULTS
 base_path = 'output/aya_dataset_400000_clustered_c20s2_i10_b16a1_l512_r8a16_20241003162141'
 paths = [base_path + '/cluster_0_checkpoint-100',
          base_path + '/cluster_0_checkpoint-150',
-         base_path + '/cluster_0_checkpoint-200']
+         base_path + '/cluster_0_checkpoint-200']#
+
+###LOCAL RESULTS
+#base_path  = 'output/aya_dataset_400000_local1_c20s2_i10_b16a1_l512_r8a16_20241006093649'
+#paths = [base_path + '/checkpoint-10',
+#            base_path + '/checkpoint-25',
+#            base_path + '/checkpoint-50']
 
 languages  = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
 
