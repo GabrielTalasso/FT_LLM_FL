@@ -21,6 +21,10 @@ def get_dataset(dataset_name, local_data_dir=None, train_split = 1):
         dataset = load_dataset(dataset_name, split="train")
         print('Start filtering languages')
         dataset = dataset.filter(lambda x: x['language'] in languages)
+    
+    elif dataset_name in ['fancyzhx/ag_news']:
+        dataset = load_dataset(dataset_name, split="train")
+
 
     else:
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
@@ -50,6 +54,9 @@ def process_sft_dataset(dataset_name, dataset, dataset_sample):
     elif dataset_name in ["CohereForAI/aya_dataset"]:
         dataset = dataset.map(alpaca_format_aya, remove_columns=['inputs', 'targets', 'language_code', 'annotation_type', 'user_id'],
                               desc=f"Preprocessing {dataset_name} for unified format.")
+
+    elif dataset_name in ['fancyzhx/ag_news']:
+        dataset = dataset
 
     elif dataset_name in ["TIGER-Lab/MathInstruct"]:
         df = pd.DataFrame(dataset)

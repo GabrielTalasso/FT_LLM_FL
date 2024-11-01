@@ -4,7 +4,7 @@ from trl import SFTTrainer
 from transformers import TrainerCallback
 from peft import get_peft_model_state_dict, set_peft_model_state_dict
 
-def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_args, local_dataset, formatting_prompts_func, data_collator, global_dict, local_auxiliary, global_auxiliary):
+def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_args, local_dataset, formatting_prompts_func, data_collator, global_dict, local_auxiliary, global_auxiliary, packing):
     
     if fed_args.fed_alg == 'fedprox':
         trainer = SFTTrainerFedProx(
@@ -33,6 +33,11 @@ def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_
         )
         trainer.add_callback(SCAFFOLD_Callback(trainer.correction, model))
     elif (fed_args.fed_alg in ['fedavg', 'clustered', 'clustered_random']) or (fed_args.fed_alg).startswith('local'):
+        if packing:
+            dataset_text_field = 'text'
+        else:
+            dataset_text_field = None
+
         trainer = SFTTrainer(
             model=model,
             tokenizer=tokenizer,
@@ -41,6 +46,8 @@ def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_
             train_dataset=local_dataset,
             formatting_func=formatting_prompts_func,
             data_collator=data_collator,
+            packing=packing,
+            dataset_text_field=dataset_text_field,
         )
     else:
         raise ValueError(f'Unsupported `fed_alg`: {fed_args.fed_alg}')

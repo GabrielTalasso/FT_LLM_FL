@@ -6,6 +6,17 @@ def split_dataset(fed_args, script_args, dataset):
     if fed_args.split_strategy == "iid":
         for i in range(fed_args.num_clients):
             local_datasets.append(dataset.shard(fed_args.num_clients, i))
+    
+    if fed_args.split_strategy == "language_iid":
+        
+        languages = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
+        dataset = dataset.filter(lambda x: x['language'] in languages)
+        for i in range(fed_args.num_clients):
+            local_datasets.append(dataset.shard(fed_args.num_clients, i))
+    
+    if fed_args.split_strategy == "ag_news_iid":
+        for i in range(fed_args.num_clients):
+            local_datasets.append(dataset.shard(fed_args.num_clients, i))
 
     if fed_args.split_strategy == "language_clusters":
         languages = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
@@ -17,6 +28,15 @@ def split_dataset(fed_args, script_args, dataset):
             cluster_dataset = cluster_dataset.shuffle(seed=script_args.seed)
 
             local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i % n_clients_in_cluster))
+    
+    if fed_args.split_strategy == "ag_news_clusters":
+        n_clients_in_cluster = fed_args.num_clients // 4
+
+        for i in range(fed_args.num_clients):
+            cluster_dataset = dataset.shard(4, i % 4)
+            cluster_dataset = cluster_dataset.shuffle(seed=script_args.seed)
+
+            local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i // n_clients_in_cluster))
     
     return local_datasets
 

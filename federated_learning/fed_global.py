@@ -79,11 +79,15 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
 
             # Make clusters using hierarchical clustering ------------------------
             if fed_args.fed_alg == 'clustered':
-                idx = make_clusters(similarity_matrix = similarity_B,
-                            n_clusters = n_clusters,
-                            round = round,
-                            save_dendrogram = True, 
-                            path = script_args.output_dir)
+
+                if n_clusters == fed_args.num_clients: #create one cluster for each clients (completely distributed)
+                    idx = np.arange(1, n_clusters+1)
+                else:
+                    idx = make_clusters(similarity_matrix = similarity_B,
+                                n_clusters = n_clusters,
+                                round = round,
+                                save_dendrogram = True, 
+                                path = script_args.output_dir)
             
             elif fed_args.fed_alg == 'clustered_random':
                 idx = np.random.randint(1, n_clusters+1, size=fed_args.num_clients)

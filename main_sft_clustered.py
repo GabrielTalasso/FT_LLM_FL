@@ -67,8 +67,13 @@ if tokenizer.pad_token is None:
 
 # ===== Define the formatting function (cater to TRL SFTTrainer)=====
 formatting_prompts_func, response_template = get_formatting_prompts_func(script_args.template, tokenizer.eos_token)
-response_template_ids = tokenizer.encode(response_template, add_special_tokens=False)[2:]   # Now we have it like in the dataset texts: `[2277, 29937, 4007, 22137, 29901]` for Llama2
-data_collator = DataCollatorForCompletionOnlyLM(response_template_ids, tokenizer=tokenizer)
+if response_template:
+    response_template_ids = tokenizer.encode(response_template, add_special_tokens=False)[2:]   # Now we have it like in the dataset texts: `[2277, 29937, 4007, 22137, 29901]` for Llama2
+    data_collator = DataCollatorForCompletionOnlyLM(response_template_ids, tokenizer=tokenizer)
+    packing = False
+else:
+    data_collator = None
+    packing = True
 
 # ===== Start federated training =====
 training_loss = [[] for i in range(fed_args.num_clients)]
@@ -99,7 +104,7 @@ for round in tqdm(range(fed_args.num_rounds)):
 
         sub_dataset = get_dataset_this_round(local_datasets[client], round, fed_args, script_args)      # get the required sub-dataset for this round
         new_lr = cosine_learning_rate(round, fed_args.num_rounds, script_args.learning_rate, 1e-6)      # manually schedule the learning rate
-        training_args = get_training_args(script_args, new_lr)
+        training_args = get_training_args(script_args, new_lr)                        # update the training arguments
 
         # ===== Train local model on the client side =====
         trainer = get_fed_local_sft_trainer(
@@ -114,6 +119,7 @@ for round in tqdm(range(fed_args.num_rounds)):
             script_args=script_args,
             local_auxiliary=auxiliary_model_list[client],
             global_auxiliary=global_auxiliary,
+            packing=packing
         )
 
         print(f'Training client {client}...')

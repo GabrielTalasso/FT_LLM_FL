@@ -5,7 +5,7 @@ batch_size=16
 gradient_accumulation_steps=1
 seq_length=512
 num_clients=20
-sample_clients=20
+sample_clients=2
 lora_r=8
 lora_alpha=16   # twice of lora_r
 lr=5e-5
@@ -13,13 +13,15 @@ lr=5e-5
 # local_data_dir=""       # you may uncomment this line if your data is stored locally and include it in the python command
 
 #dataset_name="vicgalle/alpaca-gpt4"
-dataset_name='CohereForAI/aya_dataset'
+#dataset_name='CohereForAI/aya_dataset'
+
+dataset_name='fancyzhx/ag_news'
 dataset_sample=400000
 #model_name_or_path="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 model_name_or_path="TinyLlama/TinyLlama_v1.1"
-output_dir="output"
+output_dir="output_agnews"
 
-gpu='0'
+gpu='1'
 fed_alg="clustered"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
@@ -41,8 +43,8 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
  --use_peft True \
  --load_in_4bit True \
  --output_dir $output_dir \
- --template "alpaca" \
- --sim_round 2 \
- --n_clusters 20 \
- --split_strategy "language_clusters" \
+ --template "ag_news" \
+ --sim_round 50 \
+ --n_clusters 4 \
+ --split_strategy "ag_news_clusters" \
  --train_split 0.8 \
