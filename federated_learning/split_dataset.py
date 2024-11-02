@@ -31,12 +31,14 @@ def split_dataset(fed_args, script_args, dataset):
     
     if fed_args.split_strategy == "ag_news_clusters":
         n_clients_in_cluster = fed_args.num_clients // 4
+        categories = ['World', 'Sports', 'Business', 'Sci/Tech']
 
         for i in range(fed_args.num_clients):
-            cluster_dataset = dataset.shard(4, i % 4)
+            category = categories[i // n_clients_in_cluster]
+            cluster_dataset = dataset.filter(lambda x: x['category'] == category)
             cluster_dataset = cluster_dataset.shuffle(seed=script_args.seed)
 
-            local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i // n_clients_in_cluster))
+            local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i % n_clients_in_cluster))
     
     return local_datasets
 

@@ -28,8 +28,16 @@ def get_adapter(path, client, round = 50, layer = -1):
 
     # Subtract the global adapter weights from the client adapter weights
 
-    adapter_weights_A = adapter_weights_A[layer] - adapter_weights_A_global[layer]
-    adapter_weights_B = adapter_weights_B[layer] - adapter_weights_B_global[layer]
+    if layer == 'all':
+        adapter_weights_A = [adapter_weights_A[i] - adapter_weights_A_global[i] for i in range(len(adapter_weights_A))]
+        adapter_weights_B = [adapter_weights_B[i] - adapter_weights_B_global[i] for i in range(len(adapter_weights_B))]
+
+        adapter_weights_A = torch.cat([adapter_weights_A[i].flatten() for i in range(len(adapter_weights_A))])
+        adapter_weights_B = torch.cat([adapter_weights_B[i].flatten() for i in range(len(adapter_weights_B))])
+
+    else:
+        adapter_weights_A = adapter_weights_A[layer] - adapter_weights_A_global[layer]
+        adapter_weights_B = adapter_weights_B[layer] - adapter_weights_B_global[layer]
 
     #adapter_weights_A = adapter_weights_A[layer]
     #adapter_weights_B = adapter_weights_B[layer]
@@ -40,19 +48,19 @@ def get_adapter(path, client, round = 50, layer = -1):
 
     return adapter_weights_A,  adapter_weights_B
 
-def calculate_similarity(path, n_clients, round):
+def calculate_similarity(path, n_clients, round, layer = -1):
 
     similarity_A = np.zeros((n_clients,n_clients))
     similarity_B = np.zeros((n_clients,n_clients))
 
     for c1 in list(range(n_clients)):
         #print(f'Calculating similarity for {c1}')
-        adapter_weights_A_c1, adapter_weights_B_c1 = get_adapter(path, client = c1, round = round, layer = -1) 
+        adapter_weights_A_c1, adapter_weights_B_c1 = get_adapter(path, client = c1, round = round, layer = layer) 
         adapter_weights_A_c1 = adapter_weights_A_c1.cpu()
         adapter_weights_B_c1 = adapter_weights_B_c1.cpu()
 
         for c2 in list(range(n_clients)):
-            adapter_weights_A_c2, adapter_weights_B_c2 = get_adapter(path, client = c2, round = round, layer = -1)
+            adapter_weights_A_c2, adapter_weights_B_c2 = get_adapter(path, client = c2, round = round, layer = layer)
             adapter_weights_A_c2 = adapter_weights_A_c2.cpu()
             adapter_weights_B_c2 = adapter_weights_B_c2.cpu()
             

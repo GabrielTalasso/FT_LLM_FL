@@ -1,5 +1,5 @@
 max_steps=10
-num_train_epochs=3
+num_train_epochs=1
 num_rounds=200
 batch_size=16
 gradient_accumulation_steps=1
