@@ -24,7 +24,9 @@ def get_dataset(dataset_name, local_data_dir=None, train_split = 1):
     
     elif dataset_name in ['fancyzhx/ag_news']:
         dataset = load_dataset(dataset_name, split="train")
-
+    
+    elif dataset_name in ["databricks/databricks-dolly-15k"]:
+        dataset = load_dataset(dataset_name, split="train")
 
     else:
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
@@ -57,6 +59,9 @@ def process_sft_dataset(dataset_name, dataset, dataset_sample):
 
     elif dataset_name in ['fancyzhx/ag_news']:
         dataset = dataset
+    
+    elif dataset_name in ["databricks/databricks-dolly-15k"]:
+        dataset = dataset.map(dolly_format, remove_columns=['context'], desc=f"Preprocessing {dataset_name} for unified format.")
 
     elif dataset_name in ["TIGER-Lab/MathInstruct"]:
         df = pd.DataFrame(dataset)
@@ -95,6 +100,14 @@ def alpaca_format(example):
 def alpaca_format_aya(example):
     example["instruction"] = example['inputs']
     example["response"] = example['targets']
+
+    return example
+
+def dolly_format(example):
+    if example['context'] == "":
+        example["instruction"] = example["instruction"]
+    else:
+        example["instruction"] = example["instruction"] + " " + example['context']
 
     return example
 

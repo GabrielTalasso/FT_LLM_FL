@@ -7,6 +7,7 @@ def split_dataset(fed_args, script_args, dataset):
         for i in range(fed_args.num_clients):
             local_datasets.append(dataset.shard(fed_args.num_clients, i))
     
+    #------------- IID datasets ----------------
     if fed_args.split_strategy == "language_iid":
         
         languages = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
@@ -17,6 +18,12 @@ def split_dataset(fed_args, script_args, dataset):
     if fed_args.split_strategy == "ag_news_iid":
         for i in range(fed_args.num_clients):
             local_datasets.append(dataset.shard(fed_args.num_clients, i))
+
+    if fed_args.split_strategy == "dolly_iid":
+        for i in range(fed_args.num_clients):
+            local_datasets.append(dataset.shard(fed_args.num_clients, i))
+
+    #------------- Non-IID datasets ----------------
 
     if fed_args.split_strategy == "language_clusters":
         languages = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
@@ -31,14 +38,26 @@ def split_dataset(fed_args, script_args, dataset):
     
     if fed_args.split_strategy == "ag_news_clusters":
         n_clients_in_cluster = fed_args.num_clients // 4
-        categories = ['World', 'Sports', 'Business', 'Sci/Tech']
+        categories = [0, 1, 2, 3] # 0: World, 1: Sports, 2: Business, 3: Sci/Tech
 
         for i in range(fed_args.num_clients):
             category = categories[i // n_clients_in_cluster]
-            cluster_dataset = dataset.filter(lambda x: x['category'] == category)
+            cluster_dataset = dataset.filter(lambda x: x['label'] == category)
             cluster_dataset = cluster_dataset.shuffle(seed=script_args.seed)
 
             local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i % n_clients_in_cluster))
+    
+    if fed_args.split_strategy == "dolly_clusters":
+        tasks = ['open_qa', 'general_qa', 'closed_qa', 'classification', 'brainstorming', 'information_extraction', 'summarization']
+        n_clients_in_cluster = fed_args.num_clients // len(tasks)
+
+        for i in range(fed_args.num_clients):
+            task = tasks[i // n_clients_in_cluster]
+            cluster_dataset = dataset.filter(lambda x: x['category'] == task)
+            cluster_dataset = cluster_dataset.shuffle(seed=script_args.seed)
+
+            local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i % n_clients_in_cluster))
+
     
     return local_datasets
 

@@ -21,7 +21,7 @@ dataset_sample=400000
 model_name_or_path="TinyLlama/TinyLlama_v1.1"
 output_dir="output_agnews"
 
-gpu='1'
+gpu='2'
 fed_alg="clustered"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
@@ -45,6 +45,6 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
  --output_dir $output_dir \
  --template "ag_news" \
  --sim_round 50 \
- --n_clusters 4 \
+ --n_clusters 1 \
  --split_strategy "ag_news_clusters" \
  --train_split 0.8 \
