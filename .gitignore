@@ -2,6 +2,7 @@
 
 evaluation/open_ended/data/*/model_answer/*
 evaluation/open_ended/data/*/model_judgment/*
+inference_results/*
 
 debug.py
 

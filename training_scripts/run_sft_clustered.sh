@@ -3,8 +3,8 @@ num_train_epochs=1
 num_rounds=200
 batch_size=16
 gradient_accumulation_steps=1
-seq_length=512
-num_clients=20
+seq_length=1024
+num_clients=21
 sample_clients=2
 lora_r=8
 lora_alpha=16   # twice of lora_r
@@ -15,11 +15,12 @@ lr=5e-5
 #dataset_name="vicgalle/alpaca-gpt4"
 #dataset_name='CohereForAI/aya_dataset'
 
-dataset_name='fancyzhx/ag_news'
+#dataset_name='fancyzhx/ag_news'
+dataset_name='databricks/databricks-dolly-15k'
 dataset_sample=400000
 #model_name_or_path="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 model_name_or_path="TinyLlama/TinyLlama_v1.1"
-output_dir="output_agnews"
+output_dir="output_dolly"
 
 gpu='2'
 fed_alg="clustered"
@@ -43,8 +44,8 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
  --use_peft True \
  --load_in_4bit True \
  --output_dir $output_dir \
- --template "ag_news" \
+ --template "alpaca" \
  --sim_round 50 \
- --n_clusters 1 \
- --split_strategy "ag_news_clusters" \
+ --n_clusters 7 \
+ --split_strategy "dolly_clusters" \
  --train_split 0.8 \

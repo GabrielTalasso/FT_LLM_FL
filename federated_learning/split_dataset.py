@@ -58,7 +58,6 @@ def split_dataset(fed_args, script_args, dataset):
 
             local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i % n_clients_in_cluster))
 
-    
     return local_datasets
 
 def get_dataset_this_round(dataset, round, fed_args, script_args):

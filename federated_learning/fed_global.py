@@ -149,11 +149,7 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
             A.append(a)
             B.append(b)
 
-
-
         #not implemented yet =(
-
-
                 
     else:   # Normal dataset-size-based aggregation 
         for key in global_dict.keys():

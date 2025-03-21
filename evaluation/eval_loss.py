@@ -38,13 +38,14 @@ def load_model(path, MODEL_NAME, DEVICE):
 
     return model, tokenizer
 
-def load_eval_data(DATASET_NAME, EVALSET_LEN, languages):
+def load_eval_data(DATASET_NAME, EVALSET_LEN, category, category_name = 'language'):
     
     dataset = load_dataset(DATASET_NAME, split="train", )
-    dataset = dataset.filter(lambda x: x['language'] in ['English', 'Swedish', 'German', 'Portuguese', 'Spanish'])
+    if category_name == 'language':
+        dataset = dataset.filter(lambda x: x[category_name] in ['English', 'Swedish', 'German', 'Portuguese', 'Spanish'])
     dataset_splited = dataset.train_test_split(test_size= 0.2, seed=0)
     dataset_test = dataset_splited['test']
-    dataset = dataset_test.filter(lambda x: x['language'] in languages)
+    dataset = dataset_test.filter(lambda x: x[category_name] in category)
     dataset_len = min(len(dataset), EVALSET_LEN)
     dataset = dataset.select(range(dataset_len))
 
@@ -60,7 +61,7 @@ def format_instruction(instruction, response, eos):
 
     return template.format(instruction, response, eos)
 
-def calculate_perplexity(model, tokenizer, dataset, max_length=512):
+def calculate_perplexity(model, tokenizer, dataset, max_length=512, exp_type = 'instruction'):
     model.eval()
     total_loss = 0
     total_length = 0
@@ -69,21 +70,27 @@ def calculate_perplexity(model, tokenizer, dataset, max_length=512):
     with torch.no_grad():
         for item in tqdm(dataset):
             # Format the input as an instruction
-            input_text = format_instruction(item['inputs'], item['targets'],'')
+            if exp_type == 'instruction':
+             
+                input_text = format_instruction(item['inputs'], item['targets'],'')
 
-            response = item['targets']
-            #response = f'\n### Response: {response}'
-            
-            encodings = tokenizer(input_text, return_tensors='pt', truncation=True, max_length=max_length)
-            response_encodings = tokenizer(response, return_tensors='pt', truncation=True, max_length=max_length)
+                response = item['targets']
+                #response = f'\n### Response: {response}'
+                
+                encodings = tokenizer(input_text, return_tensors='pt', truncation=True, max_length=max_length)
+                response_encodings = tokenizer(response, return_tensors='pt', truncation=True, max_length=max_length)
 
-            response_len = response_encodings.input_ids.size(1)
+                response_len = response_encodings.input_ids.size(1)
 
-            input_ids = encodings.input_ids.to(model.device)
-            target_ids = input_ids.clone()
-            target_ids[:, :-response_len] = -100
+                input_ids = encodings.input_ids.to(model.device)
+                target_ids = input_ids.clone()
+                target_ids[:, :-response_len] = -100
 
-            #print(tokenizer.decode(target_ids[0, -response_len:]))
+            if exp_type == 'domain':
+                input_text = item['inputs']
+                encodings = tokenizer(input_text, return_tensors='pt', truncation=True, max_length=max_length)
+                target_ids = encodings.input_ids.to(model.device)
+                input_ids = target_ids.clone()
             
             outputs = model(input_ids, labels=target_ids)
             loss = outputs.loss
@@ -122,22 +129,16 @@ paths = [base_path + '/cluster_0_checkpoint-100',
          base_path + '/cluster_0_checkpoint-150',
          base_path + '/cluster_0_checkpoint-200']#
 
-###LOCAL RESULTS
-#base_path  = 'output/aya_dataset_400000_local1_c20s2_i10_b16a1_l512_r8a16_20241006093649'
-#paths = [base_path + '/checkpoint-10',
-#            base_path + '/checkpoint-25',
-#            base_path + '/checkpoint-50']
-
-languages  = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
+categories  = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
 
 results = []
-df = pd.DataFrame(columns=['model', 'language', 'ppl'])
+df = pd.DataFrame(columns=['model', 'category', 'ppl'])
 
-for language in languages:
+for category in categories:
     for path in paths:
 
         model, tokenizer = load_model(path, MODEL_NAME, DEVICE)
-        test_dataset = load_eval_data(DATASET_NAME, EVALSET_LEN, language)
+        test_dataset = load_eval_data(DATASET_NAME, EVALSET_LEN, category)
 
         perplexity = calculate_perplexity(model, tokenizer, test_dataset, max_length=512)
 
@@ -145,7 +146,7 @@ for language in languages:
         round = path.split('-')[-1]
         print(f'Perplexity {model_eval}: {perplexity}')
 
-        results.append({'model': model_eval, 'round': round, 'language': language, 'ppl': perplexity})
+        results.append({'model': model_eval, 'round': round, 'category': category, 'ppl': perplexity})
 
     df = pd.DataFrame(results)
     df.to_csv('perplexity_federated.csv', index=False)
