@@ -22,10 +22,12 @@ def get_formatting_prompts_func(template_name, eos_token):
         overall_temp, response_temp = TEMPLATE_DICT[template_name]
         def formatting_prompts_func(example):    
             output_texts = []    
-            for i in range(len(example['instruction'])):
-                text = overall_temp.format(example['instruction'][i], example['response'][i], eos_token)
-                output_texts.append(text)    
-            return output_texts
+            #for i in range(len(example['instruction'])):
+            text = overall_temp.format(example['instruction'],#[i],
+                                        example['response'],#[i],
+                                        eos_token)
+            #output_texts.append(text)    
+            return text#output_texts
 
     elif template_name == 'ag_news':
 

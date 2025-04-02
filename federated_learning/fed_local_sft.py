@@ -11,7 +11,7 @@ def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_
             model=model,
             tokenizer=tokenizer,
             args=training_args,
-            max_seq_length=script_args.seq_length,
+            #max_seq_length=script_args.seq_length,
             train_dataset=local_dataset,
             formatting_func=formatting_prompts_func,
             data_collator=data_collator,
@@ -23,7 +23,7 @@ def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_
             model=model,
             tokenizer=tokenizer,
             args=training_args,
-            max_seq_length=script_args.seq_length,
+            #max_seq_length=script_args.seq_length,
             train_dataset=local_dataset,
             formatting_func=formatting_prompts_func,
             data_collator=data_collator,
@@ -42,12 +42,12 @@ def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_
             model=model,
             tokenizer=tokenizer,
             args=training_args,
-            max_seq_length=script_args.seq_length,
+            #max_seq_length=script_args.seq_length,
             train_dataset=local_dataset,
             formatting_func=formatting_prompts_func,
             data_collator=data_collator,
-            packing=packing,
-            dataset_text_field=dataset_text_field,
+            #packing=packing,
+            #dataset_text_field=dataset_text_field,
         )
     else:
         raise ValueError(f'Unsupported `fed_alg`: {fed_args.fed_alg}')

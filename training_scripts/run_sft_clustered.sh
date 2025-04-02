@@ -4,25 +4,30 @@ num_rounds=200
 batch_size=16
 gradient_accumulation_steps=1
 seq_length=1024
-num_clients=21
-sample_clients=2
+num_clients=20
+sample_clients=5
 lora_r=8
 lora_alpha=16   # twice of lora_r
-lr=5e-5
+lr=5e-4
 
 # local_data_dir=""       # you may uncomment this line if your data is stored locally and include it in the python command
 
 #dataset_name="vicgalle/alpaca-gpt4"
-#dataset_name='CohereForAI/aya_dataset'
+dataset_name='CohereForAI/aya_dataset'
+#dataset_name='databricks/databricks-dolly-15k'
+#dataset_name="multitask"
 
-#dataset_name='fancyzhx/ag_news'
-dataset_name='databricks/databricks-dolly-15k'
+output_dir="output_aya"
+
 dataset_sample=400000
-#model_name_or_path="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-model_name_or_path="TinyLlama/TinyLlama_v1.1"
-output_dir="output_dolly"
 
-gpu='2'
+sim_alias='clustered'
+
+#model_name_or_path='HuggingFaceTB/SmolLM-1.7B'
+#model_name_or_path='HuggingFaceTB/SmolLM-360M'
+model_name_or_path='unsloth/Llama-3.2-1B'
+
+gpu='1'
 fed_alg="clustered"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
@@ -45,7 +50,8 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
  --load_in_4bit True \
  --output_dir $output_dir \
  --template "alpaca" \
- --sim_round 50 \
- --n_clusters 7 \
- --split_strategy "dolly_clusters" \
+ --sim_round 10 \
+ --n_clusters 5 \
+ --split_strategy "language_clusters" \
  --train_split 0.8 \
+ --sim_alias $sim_alias \

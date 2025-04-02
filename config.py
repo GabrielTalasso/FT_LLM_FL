@@ -64,6 +64,7 @@ class ScriptArguments:
     dataset_sample: Optional[int] = field(default=20000, metadata={"help": "the number of samples to use from the dataset"})
     local_data_dir: Optional[str] = field(default=None, metadata={"help": "the local data directory if you want to use downloaded data"})
     train_split: Optional[float] = field(default=1, metadata={"help": "the ratio of training data"})
+    sim_alias: Optional[str] = field(default="none", metadata={"help": "the alias of the simulation"})
 
 parser = HfArgumentParser((ScriptArguments, FedArguments))
 script_args, fed_args, remanining = parser.parse_args_into_dataclasses(return_remaining_strings=True)
@@ -99,7 +100,8 @@ def get_training_args(script_args, new_lr):
         push_to_hub=script_args.push_to_hub,
         hub_model_id=script_args.hub_model_id,
         gradient_checkpointing=script_args.gradient_checkpointing,
-        lr_scheduler_type="constant"
+        lr_scheduler_type="constant",
+        #max_seq_length=script_args.seq_length,
     )
     return training_args
 
@@ -130,17 +132,24 @@ def get_model_config(script_args):
     return device_map, quantization_config, torch_dtype
 
 def save_config(script_args, fed_args):
-    now_time = (datetime.now()).strftime("%Y%m%d%H%M%S")
+    now_time = datetime.now().strftime("%Y%m%d%H%M%S")
     dataset_name_split = os.path.basename(script_args.dataset_name)
-    output_dir = f"{script_args.output_dir}/{dataset_name_split}_{script_args.dataset_sample}_{fed_args.fed_alg}_c{fed_args.num_clients}s{fed_args.sample_clients}_i{script_args.max_steps}_b{script_args.batch_size}a{script_args.gradient_accumulation_steps}_l{script_args.seq_length}_r{script_args.peft_lora_r}a{script_args.peft_lora_alpha}_{now_time}"
+    if script_args.sim_alias != "none":
+        output_dir = f"{script_args.output_dir}/{script_args.model_name_or_path.split('/')[-1]}/{script_args.sim_alias}_{dataset_name_split}_{fed_args.fed_alg}_c{fed_args.num_clients}s{fed_args.sample_clients}_i{script_args.max_steps}_b{script_args.batch_size}a{script_args.gradient_accumulation_steps}_l{script_args.seq_length}_r{script_args.peft_lora_r}a{script_args.peft_lora_alpha}_{now_time}"
+    else:
+        output_dir = f"{script_args.output_dir}/{dataset_name_split}_{script_args.dataset_sample}_{fed_args.fed_alg}_c{fed_args.num_clients}s{fed_args.sample_clients}_i{script_args.max_steps}_b{script_args.batch_size}a{script_args.gradient_accumulation_steps}_l{script_args.seq_length}_r{script_args.peft_lora_r}a{script_args.peft_lora_alpha}_{now_time}"
+    
     while True:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             break
         else:
             now_time = (datetime.now() + timedelta(seconds=1)).strftime("%Y%m%d%H%M%S")
-            output_dir = f"{script_args.output_dir}/{dataset_name_split}_{fed_args.fed_alg}_c{fed_args.num_clients}s{fed_args.sample_clients}_i{script_args.max_steps}_b{script_args.batch_size}a{script_args.gradient_accumulation_steps}_l{script_args.seq_length}_{now_time}"
-
+            if script_args.sim_alias != "none":
+                output_dir = f"{script_args.output_dir}/{script_args.model_name_or_path.split('/')[-1]}/{script_args.sim_alias}_{dataset_name_split}_{fed_args.fed_alg}_c{fed_args.num_clients}s{fed_args.sample_clients}_i{script_args.max_steps}_b{script_args.batch_size}a{script_args.gradient_accumulation_steps}_l{script_args.seq_length}_r{script_args.peft_lora_r}a{script_args.peft_lora_alpha}_nc{fed_args.n_clusters}_{now_time}"
+            else:
+                output_dir = f"{script_args.output_dir}/{dataset_name_split}_{script_args.dataset_sample}_{fed_args.fed_alg}_c{fed_args.num_clients}s{fed_args.sample_clients}_i{script_args.max_steps}_b{script_args.batch_size}a{script_args.gradient_accumulation_steps}_l{script_args.seq_length}_r{script_args.peft_lora_r}a{script_args.peft_lora_alpha}_nc{fed_args.n_clusters}_{now_time}"
+    
     script_args.output_dir = output_dir
     with open(os.path.join(script_args.output_dir, "args.json"), "w") as f:
         combined_dict = {

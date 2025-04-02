@@ -10,7 +10,8 @@ def split_dataset(fed_args, script_args, dataset):
     #------------- IID datasets ----------------
     if fed_args.split_strategy == "language_iid":
         
-        languages = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
+        #languages = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
+        languages = ['English', 'Dutch', 'Turkish', 'Portuguese', 'Spanish']
         dataset = dataset.filter(lambda x: x['language'] in languages)
         for i in range(fed_args.num_clients):
             local_datasets.append(dataset.shard(fed_args.num_clients, i))
@@ -22,11 +23,16 @@ def split_dataset(fed_args, script_args, dataset):
     if fed_args.split_strategy == "dolly_iid":
         for i in range(fed_args.num_clients):
             local_datasets.append(dataset.shard(fed_args.num_clients, i))
+    
+    if fed_args.split_strategy == "multitask_iid":
+        for i in range(fed_args.num_clients):
+            local_datasets.append(dataset.shard(fed_args.num_clients, i))
 
     #------------- Non-IID datasets ----------------
 
     if fed_args.split_strategy == "language_clusters":
-        languages = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
+        #languages = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
+        languages = ['English', 'Dutch', 'Turkish', 'Portuguese', 'Spanish']
         n_clients_in_cluster = fed_args.num_clients // len(languages)
 
         for i in range(fed_args.num_clients):
@@ -54,6 +60,17 @@ def split_dataset(fed_args, script_args, dataset):
         for i in range(fed_args.num_clients):
             task = tasks[i // n_clients_in_cluster]
             cluster_dataset = dataset.filter(lambda x: x['category'] == task)
+            cluster_dataset = cluster_dataset.shuffle(seed=script_args.seed)
+
+            local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i % n_clients_in_cluster))
+    
+    if fed_args.split_strategy == "multitask_clusters":
+        tasks = ['boolq', 'gigaword', 'samsum', 'webnlg']
+        n_clients_in_cluster = fed_args.num_clients // len(tasks)
+
+        for i in range(fed_args.num_clients):
+            task = tasks[i // n_clients_in_cluster]
+            cluster_dataset = dataset.filter(lambda x: x['task'] == task)
             cluster_dataset = cluster_dataset.shuffle(seed=script_args.seed)
 
             local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i % n_clients_in_cluster))

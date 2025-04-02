@@ -6,18 +6,29 @@ from scipy.cluster.hierarchy import dendrogram, linkage
 from matplotlib import pyplot as plt
 import pandas as pd
 import scipy.cluster.hierarchy as spc
+from safetensors.torch import load_file
 
 sys.path.append(".")
 
 
 def get_adapter(path, client, round = 50, layer = -1):
 
-    adapter_path_client = path + f'/clients_adapters/checkpoint-{round}_client{client}/adapter_model.bin'
-    adapter_path_global = path+ f'/checkpoint-{round-1}/adapter_model.bin'
+    try:
+        adapter_path_client = path + f'/clients_adapters/checkpoint-{round}_client{client}/adapter_model.bin'
+        adapter_path_global = path+ f'/checkpoint-{round-1}/adapter_model.bin'
 
-    # Load the adapter weights from the checkpoint
-    adapter_state_dict = torch.load(adapter_path_client, map_location='cpu')
-    adapter_global = torch.load(adapter_path_global, map_location='cpu')
+        # Load the adapter weights from the checkpoint
+        adapter_state_dict = torch.load(adapter_path_client, map_location='cpu')
+        adapter_global = torch.load(adapter_path_global, map_location='cpu')
+    except FileNotFoundError:
+        adapter_path_client = path + f'/clients_adapters/checkpoint-{round}_client{client}/adapter_model.safetensors'
+        adapter_path_global = path+ f'/checkpoint-{round-1}/adapter_model.safetensors'
+
+        # Load the adapter weights from the checkpoint using safetensors
+        adapter_state_dict = load_file(adapter_path_client, device='cpu')
+        adapter_global = load_file(adapter_path_global, device='cpu')
+        #adapter_global = torch.load(adapter_path_global, map_location='cpu', weights_only=False)
+
 
     # Access the adapter weights (as tensors)
     adapter_weights_A = [param for name, param in adapter_state_dict.items() if 'lora_A' in name]

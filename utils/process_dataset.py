@@ -1,5 +1,5 @@
 import datasets
-from datasets import load_dataset
+from datasets import load_dataset, concatenate_datasets
 import pandas as pd
 from .conversation import get_conv_template
 from functools import partial
@@ -17,7 +17,8 @@ def get_dataset(dataset_name, local_data_dir=None, train_split = 1):
         dataset = load_dataset(dataset_name, split="train_sft")
 
     elif dataset_name in ["CohereForAI/aya_dataset"]:
-        languages = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
+        #languages = ['English', 'Swedish', 'German', 'Portuguese', 'Spanish']
+        languages = ['English', 'Dutch', 'Turkish', 'Portuguese', 'Spanish']
         dataset = load_dataset(dataset_name, split="train")
         print('Start filtering languages')
         dataset = dataset.filter(lambda x: x['language'] in languages)
@@ -27,6 +28,16 @@ def get_dataset(dataset_name, local_data_dir=None, train_split = 1):
     
     elif dataset_name in ["databricks/databricks-dolly-15k"]:
         dataset = load_dataset(dataset_name, split="train")
+
+    elif dataset_name in ['multitask']:
+
+        boolq = prepare_boolq(eval=eval).map(lambda x: {'instruction': x['instruction'], 'response': x['response'], 'task': 'boolq'})
+        webnlg = prepare_webnlg(eval=eval).map(lambda x: {'instruction': x['instruction'], 'response': x['response'], 'task': 'webnlg'})
+        samsum = prepare_samsum(eval=eval).map(lambda x: {'instruction': x['instruction'], 'response': x['response'], 'task': 'samsum'})
+        gigaword = prepare_gigaword(eval=eval).map(lambda x: {'instruction': x['instruction'], 'response': x['response'], 'task': 'gigaword'})
+
+        dataset = concatenate_datasets([boolq, webnlg, samsum, gigaword])
+        dataset = dataset.shuffle(seed=0)
 
     else:
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
@@ -62,6 +73,9 @@ def process_sft_dataset(dataset_name, dataset, dataset_sample):
     
     elif dataset_name in ["databricks/databricks-dolly-15k"]:
         dataset = dataset.map(dolly_format, remove_columns=['context'], desc=f"Preprocessing {dataset_name} for unified format.")
+
+    elif dataset_name in ['multitask']: #already formated on previous load step
+        return dataset
 
     elif dataset_name in ["TIGER-Lab/MathInstruct"]:
         df = pd.DataFrame(dataset)
@@ -178,4 +192,86 @@ def split_hh(example, template_name="vicuna_v1.1"):
     example["prompt"] = conv_template.get_prompt()
     example["chosen"] = example["chosen"][len(common_prefix) - 1 :]     # -1 to include the space in the front.
     example["rejected"] = example["rejected"][len(common_prefix) - 1 :]
+    return example
+
+
+##### FUNCTIONS FOR MULTITASK PROCESS
+
+def prepare_webnlg(eval = False):
+    dataset = load_dataset('GEM/web_nlg', 'en', split = 'train')
+    #dataset = dataset.train_test_split(test_size=0.2, seed=0)
+
+    # if eval:
+    #     dataset = dataset['test']
+    # else:
+    #     dataset = dataset['train']
+    
+    dataset = dataset.map(webnlg_format)
+
+    return dataset
+
+def prepare_boolq(eval = False):
+    dataset = load_dataset('google/boolq', split = 'train')
+    #dataset = dataset.train_test_split(test_size=0.2, seed=0)
+
+    # if eval:
+    #     dataset = dataset['test']
+    # else:
+    #     dataset = dataset['train']
+    
+    dataset = dataset.map(boolq_format)
+
+    return dataset
+
+def prepare_samsum(eval = False):
+    dataset = load_dataset('Samsung/samsum', split = 'train', trust_remote_code=True)
+    #dataset = dataset.train_test_split(test_size=0.2, seed=0)
+
+    # if eval:
+    #     dataset = dataset['test']
+    # else:
+    #     dataset = dataset['train']
+
+    dataset = dataset.map(samsum_format)
+
+    return dataset
+
+def prepare_gigaword(eval = False):
+    dataset = load_dataset('Harvard/gigaword', split = 'train', trust_remote_code=True)
+    #dataset = dataset.train_test_split(test_size=0.2, seed=0)
+
+    # if eval:
+    #     dataset = dataset['test']
+    # else:
+    #     dataset = dataset['train']
+    
+    dataset = dataset.shuffle(seed=0)
+    dataset = dataset.select(range(30000)) #loading only part (the whole dataset has aroud 4M examples)
+    dataset = dataset.map(gigaword_format)
+
+    return dataset
+
+def boolq_format(example):
+    #example["instruction"] = example['passage'] + " Based on the passage, answer this question:" + example['question']
+    example["instruction"] = example['passage'] + '-' + example['question']
+    example["response"] = str(example['answer'])
+    return example
+
+def webnlg_format(example):
+    example['input'] = str(example['input'])
+    #example["instruction"] = "Organize this data into a readable text: " + example['input']
+    example["instruction"] = example['input']
+    example["response"] = example['target']
+    return example
+
+def samsum_format(example):
+    #example["instruction"] = "Summarize this conversation: " + example['dialogue']
+    example["instruction"] = example['dialogue']
+    example["response"] = example['summary']
+    return example
+
+def gigaword_format(example):
+    #example["instruction"] = "Summarize this text: " + example['document']
+    example["instruction"] = example['document']
+    example["response"] = example['summary']
     return example

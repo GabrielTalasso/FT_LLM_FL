@@ -103,14 +103,17 @@ for round in tqdm(range(fed_args.num_rounds)):
             set_peft_model_state_dict(model, global_dict)   # sync the global model to the local model
 
         sub_dataset = get_dataset_this_round(local_datasets[client], round, fed_args, script_args)      # get the required sub-dataset for this round
-        #write the sub-dataset to a file (crate file first)
+        
+
         if not os.path.exists(os.path.join(script_args.output_dir, "clients_adapters")):
             os.makedirs(os.path.join(script_args.output_dir, "clients_adapters"))
-        with open(os.path.join(script_args.output_dir, f"clients_adapters/sub_dataset_{client}.txt"), 'w') as f:
-            for i in range(len(sub_dataset)):
-                f.write(str(sub_dataset[i]) + '\n')
+
+        #write the sub-dataset to a file (crate file first)    
+        #with open(os.path.join(script_args.output_dir, f"clients_adapters/sub_dataset_{client}.txt"), 'w') as f:
+        #    for i in range(len(sub_dataset)):
+        #        f.write(str(sub_dataset[i]) + '\n')
                         
-        new_lr = cosine_learning_rate(round, fed_args.num_rounds, script_args.learning_rate, 1e-6)      # manually schedule the learning rate
+        new_lr = cosine_learning_rate(round, fed_args.num_rounds, script_args.learning_rate, 1e-5)      # manually schedule the learning rate
         training_args = get_training_args(script_args, new_lr)                        # update the training arguments
 
         # ===== Train local model on the client side =====

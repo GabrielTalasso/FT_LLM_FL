@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "5"
 
 import numpy as np
 import os
@@ -131,23 +131,27 @@ def prepare_gigaword(eval = False):
     return dataset
 
 def boolq_format(example):
-    example["instruction"] = example['passage'] + " Based on the passage, answer this question:" + example['question']
+    #example["instruction"] = example['passage'] + " Based on the passage, answer this question:" + example['question']
+    example["instruction"] = example['passage'] + '-' + example['question']
     example["response"] = str(example['answer'])
     return example
 
 def webnlg_format(example):
     example['input'] = str(example['input'])
-    example["instruction"] = "Organize this data into a readable text: " + example['input']
+    #example["instruction"] = "Organize this data into a readable text: " + example['input']
+    example["instruction"] = example['input']
     example["response"] = example['target']
     return example
 
 def samsum_format(example):
-    example["instruction"] = "Summarize this conversation: " + example['dialogue']
+    #example["instruction"] = "Summarize this conversation: " + example['dialogue']
+    example["instruction"] = example['dialogue']
     example["response"] = example['summary']
     return example
 
 def gigaword_format(example):
-    example["instruction"] = "Summarize this text: " + example['document']
+    #example["instruction"] = "Summarize this text: " + example['document']
+    example["instruction"] = example['document']
     example["response"] = example['summary']
     return example
 
@@ -194,11 +198,11 @@ def get_formatting_prompts_func(template_name, eos_token):
 
 def main():
     template = TEMPLATE_DICT['alpaca'][0]
-    MODEL_NAME = 'HuggingFaceTB/SmolLM-1.7B'
+    MODEL_NAME = 'HuggingFaceTB/SmolLM-360M'
     #MODEL_NAME = 'HuggingFaceTB/SmolLM-360M'
 
     #DATASET_NAME = "databricks/databricks-dolly-15k"
-    DATASET_NAME = "CohereForAI/aya_dataset"
+    #DATASET_NAME = "CohereForAI/aya_dataset"
     DATASET_NAME = 'multitask'
 
     max_eval_len = 1000
@@ -256,22 +260,22 @@ def main():
         eval_data = load_data(DATASET_NAME, tasks = tasks, eval = True)
         eval_data = eval_data.select(range(min(max_eval_len, len(eval_data))))
 
-#        if DATASET_NAME == "databricks/databricks-dolly-15k":
-#            data = data.map(dolly_format)
-#            eval_data = eval_data.map(dolly_format)  # Apply same formatting to eval data
-#        
-#        elif DATASET_NAME == "CohereForAI/aya_dataset":
-#            data = data.map(aya_format)
-#            eval_data = eval_data.map(aya_format)
+        if DATASET_NAME == "databricks/databricks-dolly-15k":
+            data = data.map(dolly_format)
+            eval_data = eval_data.map(dolly_format)  # Apply same formatting to eval data
+        
+        elif DATASET_NAME == "CohereForAI/aya_dataset":
+            data = data.map(aya_format)
+            eval_data = eval_data.map(aya_format)
 
         formatting_prompts_func, response_temp = get_formatting_prompts_func('alpaca', tokenizer.eos_token)
 
         class ScriptArgs:
-            output_dir = f"./output_centralized/experiments_lora32/{experiment_name}/{MODEL_NAME.split('-')[-1]}"
+            output_dir = f"./output_centralized/experiments_wo_formatting/{experiment_name}/{MODEL_NAME.split('-')[-1]}"
             batch_size = 16
             logging_steps = 10
             num_train_epochs = 10
-            max_steps = 100 #2000
+            max_steps = 1000 #2000
             save_steps = int(max_steps/5)
             eval_steps = int(max_steps/10)
             save_total_limit = int(max_steps//save_steps)
@@ -322,8 +326,6 @@ def main():
                     data_collator=data_collator,
                     #packing=packing,
                     #dataset_text_field=dataset_text_field,
-                
-
                 )
 
         trainer.train()
