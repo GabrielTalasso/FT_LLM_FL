@@ -1,4 +1,5 @@
 import random
+import json
 
 def split_dataset(fed_args, script_args, dataset):
     dataset = dataset.shuffle(seed=script_args.seed)        # Shuffle the dataset
@@ -74,8 +75,18 @@ def split_dataset(fed_args, script_args, dataset):
             cluster_dataset = cluster_dataset.shuffle(seed=script_args.seed)
 
             local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i % n_clients_in_cluster))
-
+    
+    save_dataset_stats(local_datasets, script_args.output_dir)
     return local_datasets
+
+def save_dataset_stats(local_datasets, path):
+    dataset_stats = {}
+    for i, dataset in enumerate(local_datasets):
+        dataset_stats[f'client_{i}'] = len(dataset)
+    with open(path + '/dataset_stats.json', 'w') as f:
+        json.dump(dataset_stats, f)
+
+
 
 def get_dataset_this_round(dataset, round, fed_args, script_args):
     num2sample = script_args.batch_size * script_args.gradient_accumulation_steps * script_args.max_steps

@@ -21,13 +21,13 @@ output_dir="output_aya"
 
 dataset_sample=400000
 
-sim_alias='clustered'
+sim_alias='fully_distributed'
 
 #model_name_or_path='HuggingFaceTB/SmolLM-1.7B'
 #model_name_or_path='HuggingFaceTB/SmolLM-360M'
 model_name_or_path='unsloth/Llama-3.2-1B'
 
-gpu='1'
+gpu='7'
 fed_alg="clustered"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
@@ -50,8 +50,8 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
  --load_in_4bit True \
  --output_dir $output_dir \
  --template "alpaca" \
- --sim_round 10 \
- --n_clusters 5 \
+ --sim_round 1 \
+ --n_clusters 20 \
  --split_strategy "language_clusters" \
  --train_split 0.8 \
  --sim_alias $sim_alias \

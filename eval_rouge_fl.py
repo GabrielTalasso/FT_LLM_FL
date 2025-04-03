@@ -11,11 +11,12 @@ from datasets import load_dataset, concatenate_datasets
 from accelerate import Accelerator
 from torch.utils.data import DataLoader
 import evaluate
+import time
 
 sys.path.append(".")
 from utils.template import TEMPLATE_DICT
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 
 def load_model(path, MODEL_NAME, DEVICE = 'cuda'):
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(DEVICE)
@@ -279,33 +280,40 @@ def evaluate_model(model_path, base_model, dataset_name, task, device, eval_len,
 
 if __name__ == "__main__":
     #For Multitask
-    path_model_clustred = 'output_multitask/Llama-3.2-1B/clustered_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250401151553'
-    model_list = ['output_multitask/Llama-3.2-1B/fedavg_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250401152254/cluster_0_checkpoint-200', #fedavg
-                    path_model_clustred + '/cluster_0_checkpoint-200', #clustered
-                    path_model_clustred + '/cluster_1_checkpoint-200', #clustered
-                    path_model_clustred + '/cluster_2_checkpoint-200', #clustered
-                    path_model_clustred + '/cluster_3_checkpoint-200', #clustered
-    ]
+    #path_model_clustred = 'output_multitask/Llama-3.2-1B/clustered_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250401151553'
+    #model_list = ['output_multitask/Llama-3.2-1B/fedavg_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250401152254/cluster_0_checkpoint-200', #fedavg
+    #                path_model_clustred + '/cluster_0_checkpoint-200', #clustered
+    #                path_model_clustred + '/cluster_1_checkpoint-200', #clustered
+    #                path_model_clustred + '/cluster_2_checkpoint-200', #clustered
+    #                path_model_clustred + '/cluster_3_checkpoint-200', #clustered
+    #]
+
+    #Multitask fully distributed
+    #time.sleep(3000)
+    path_model_clustred = 'output_multitask/Llama-3.2-1B/fully_distributed_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250402104116'
+    model_list = [path_model_clustred + f'/cluster_{c}_checkpoint-200' for c in list(range(20))]
 
     #for Aya
-    path_model_clustered  = '/home/gabriel.talasso/FT_LLM_FL/output_aya/Llama-3.2-1B/clustered_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250401163027'
-    model_list  = ['/home/gabriel.talasso/FT_LLM_FL/output_aya/Llama-3.2-1B/fedavg_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250401162934/cluster_0_checkpoint-200', #fedavg,
-                    path_model_clustered + '/cluster_0_checkpoint-200', #clustered
-                    path_model_clustered + '/cluster_1_checkpoint-200', #clustered
-                    path_model_clustered + '/cluster_2_checkpoint-200', #clustered
-                    path_model_clustered + '/cluster_3_checkpoint-200', #clustered
-                    path_model_clustered + '/cluster_4_checkpoint-200', #clustered
-    ]
-    #base_model = 'HuggingFaceTB/SmolLM-360M'
+    #path_model_clustered  = '/home/gabriel.talasso/FT_LLM_FL/output_aya/Llama-3.2-1B/clustered_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250401163027'
+    #model_list  = ['/home/gabriel.talasso/FT_LLM_FL/output_aya/Llama-3.2-1B/fedavg_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250401162934/cluster_0_checkpoint-200', #fedavg,
+    #                path_model_clustered + '/cluster_0_checkpoint-200', #clustered
+    #                path_model_clustered + '/cluster_1_checkpoint-200', #clustered
+    #                path_model_clustered + '/cluster_2_checkpoint-200', #clustered
+    #                path_model_clustered + '/cluster_3_checkpoint-200', #clustered
+    #                path_model_clustered + '/cluster_4_checkpoint-200', #clustered
+    #]
 
+    path_model_clustred = 'output_aya/Llama-3.2-1B/fully_distributed_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250402104230/'
+    model_list = [path_model_clustred + f'/cluster_{c}_checkpoint-200' for c in list(range(20))]
+
+    #base_model = 'HuggingFaceTB/SmolLM-360M'
     base_model = 'unsloth/Llama-3.2-1B'
 
-    dataset_name = 'multitask'
+    #dataset_name = 'multitask'
     dataset_name = 'CohereForAI/aya_dataset'
 
-    task_list =  ['all_tasks', 'boolq', 'gigaword', 'webnlg', 'samsum']
+    #task_list =  ['all_tasks', 'boolq', 'gigaword', 'webnlg', 'samsum']
     task_list = ['English', 'Dutch', 'Turkish', 'Portuguese', 'Spanish']
-    
     
     device = 'cuda'
     eval_len = 100

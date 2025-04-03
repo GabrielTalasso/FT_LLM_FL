@@ -72,11 +72,14 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
             n_clusters = fed_args.n_clusters
 
             # Calculate similarity matrix between clients adapters ----------------
-            similarity_A, similarity_B = calculate_similarity(path = script_args.output_dir,
-                                                              n_clients = fed_args.num_clients,
-                                                              round = round)
 
-
+            if n_clusters == fed_args.num_clients:
+                pass
+            else:
+                similarity_A, similarity_B = calculate_similarity(path = script_args.output_dir,
+                                                                n_clients = fed_args.num_clients,
+                                                                round = round)
+                                                                
             # Make clusters using hierarchical clustering ------------------------
             if fed_args.fed_alg == 'clustered':
 
