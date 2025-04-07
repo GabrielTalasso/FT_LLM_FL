@@ -115,3 +115,4 @@ def make_clusters(similarity_matrix, n_clusters, round, save_dendrogram = True, 
         plt.savefig(os.path.join(path, f"dendrogram_round{round}.png"))
 
     return idx
+
