@@ -12,16 +12,32 @@ from accelerate import Accelerator
 from torch.utils.data import DataLoader
 import evaluate
 import time
+import glob
 
 sys.path.append(".")
 from utils.template import TEMPLATE_DICT
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 
-def load_model(path, MODEL_NAME, DEVICE = 'cuda'):
-    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(DEVICE)
-    model = PeftModel.from_pretrained(model, path).to(DEVICE)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, padding_side="left")
+def load_model(path, MODEL_NAME, DEVICE = 'cuda', adapter_name = None, global_dpa_path = None):
+
+    if adapter_name is not None:
+        model = AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(DEVICE)
+        model = PeftModel.from_pretrained(model, global_dpa_path, adapter_name='global').to(DEVICE)
+
+        model = model.merge_and_unload()
+
+        ckpts = glob.glob(path)
+        latest_ckpt = max(ckpts, key=os.path.getctime)
+        latest_ckpt = latest_ckpt + '/local'
+        print(f"Loading model from {latest_ckpt}")
+        model = PeftModel.from_pretrained(model, latest_ckpt, adapter_name=adapter_name).to(DEVICE)
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, padding_side="left")
+    else:
+        model = AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(DEVICE)
+        model = PeftModel.from_pretrained(model, path).to(DEVICE)
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, padding_side="left")
+
     tokenizer.pad_token = tokenizer.eos_token
     return model, tokenizer
 
@@ -210,7 +226,7 @@ def calculate_perplexity(instruction, output, model, tokenizer, device):
 def get_formatting_prompts_func_test(template_name, eos_token):
     if template_name in TEMPLATE_DICT:
         overall_temp, response_temp = TEMPLATE_DICT[template_name]
-        def formatting_prompts_func(example):    
+        def formatting_prompts_func(example):
             text = overall_temp.format(example['instruction'], '', '')
             return text
     elif template_name == 'ag_news':
@@ -218,13 +234,16 @@ def get_formatting_prompts_func_test(template_name, eos_token):
         response_temp = None
     return formatting_prompts_func, response_temp
 
-def evaluate_model(model_path, base_model, dataset_name, task, device, eval_len, eval_rouge, eval_perplexity, output_dir):
+def evaluate_model(model_path, base_model, dataset_name, task, device, eval_len, eval_rouge, eval_perplexity, output_dir, is_dpa=False, global_dpa_path=None):
     print(f"Evaluating model: {model_path} on task: {task}")
     print(f"Base model: {base_model}")
     print(f"Dataset: {dataset_name}")
     
     # Load model
-    model, tokenizer = load_model(model_path, base_model, device)
+    if is_dpa:
+        model, tokenizer = load_model(model_path, base_model, device, adapter_name = 'local', global_dpa_path = global_dpa_path)
+    else:
+        model, tokenizer = load_model(model_path, base_model, device)
     
     dataset = load_data(dataset_name, task, eval=True)
     dataset = dataset.select(range(eval_len))
@@ -236,7 +255,13 @@ def evaluate_model(model_path, base_model, dataset_name, task, device, eval_len,
     # Create output directory (this output dir is used in addition to saving a JSON in the model path)
     model_name = os.path.basename(model_path) if os.path.isdir(model_path) else os.path.basename(os.path.dirname(model_path))
     base_model_name = base_model.split('/')[-1]
-    out_dir = os.path.join(output_dir, f"{model_name}_{base_model_name}_{task}")
+    if is_dpa:
+        ckpts = glob.glob(output_dir)
+        latest_ckpt = max(ckpts, key=os.path.getctime)
+        latest_ckpt = latest_ckpt + '/local'
+        out_dir = os.path.join(latest_ckpt, f"{model_name}_{base_model_name}_{task}")
+    else:
+        out_dir = os.path.join(output_dir, f"{model_name}_{base_model_name}_{task}")
     os.makedirs(out_dir, exist_ok=True)
     
     results = {}
@@ -281,19 +306,26 @@ def evaluate_model(model_path, base_model, dataset_name, task, device, eval_len,
 if __name__ == "__main__":
     #For Multitask
 
-    #time.sleep(12*60*60)
+    #time.sleep(8*60*60)
+    is_dpa = False
+    global_dpa_path = None
 
-    path_model_clustred = 'output_aya/Llama-3.2-1B/clustered_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250403103502'
-    model_list = ['output_aya/Llama-3.2-1B/fedavg_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250403103436/cluster_0_checkpoint-200', #fedavg
-                    path_model_clustred + '/cluster_0_checkpoint-200', #clustered
-                    path_model_clustred + '/cluster_1_checkpoint-200', #clustered
-                    path_model_clustred + '/cluster_2_checkpoint-200', #clustered
-                    path_model_clustred + '/cluster_3_checkpoint-200', #clustered
-    ]
+    #path_model_clustred = 'output_aya/Llama-3.2-1B/clustered_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250403103502'
+    #model_list = ['output_aya/Llama-3.2-1B/fedavg_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250403103436/cluster_0_checkpoint-200', #fedavg
+    #                path_model_clustred + '/cluster_0_checkpoint-200', #clustered
+    #                path_model_clustred + '/cluster_1_checkpoint-200', #clustered
+    #                path_model_clustred + '/cluster_2_checkpoint-200', #clustered
+    #                path_model_clustred + '/cluster_3_checkpoint-200', #clustered
+    #]
 
-    #Multitask fully distributed
-    #path_model_clustred = 'output_multitask/Llama-3.2-1B/fully_distributed_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250402104116'
-    #model_list = [path_model_clustred + f'/cluster_{c}_checkpoint-200' for c in list(range(20))]
+    ##Multitask fully distributed
+    path_model_clustred = 'output_multitask/Llama-3.2-1B/fully_distributed_iid_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250407172927'
+    model_list = [path_model_clustred + f'/cluster_{c}_checkpoint-200' for c in list(range(20))]
+    model_list.append('output_multitask/Llama-3.2-1B/fedavg_iid_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250407172809/cluster_0_checkpoint-200')
+
+    #global_dpa_path = 'output_multitask/Llama-3.2-1B/feddpa-multidomain_multitask_clustered_c20s5_i5_b16a1_l1024_r8a16_20250407111246/global_checkpoint-200/global'
+    #local_dpa_path =  'output_multitask/Llama-3.2-1B/feddpa-multidomain_multitask_clustered_c20s5_i5_b16a1_l1024_r8a16_20250407111246/local_adapters/'
+    #model_list = [local_dpa_path + f'checkpoint-*_client{c}' for c in list(range(20))]
 
     #for Aya
     #path_model_clustered  = '/home/gabriel.talasso/FT_LLM_FL/output_aya/Llama-3.2-1B/clustered_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250401163027'
@@ -311,11 +343,11 @@ if __name__ == "__main__":
     #base_model = 'HuggingFaceTB/SmolLM-360M'
     base_model = 'unsloth/Llama-3.2-1B'
 
-    #dataset_name = 'multitask'
-    dataset_name = 'CohereForAI/aya_dataset'
+    dataset_name = 'multitask'
+    #dataset_name = 'CohereForAI/aya_dataset'
 
-    #task_list =  ['all_tasks', 'boolq', 'gigaword', 'webnlg', 'samsum']
-    task_list = ['English', 'Dutch', 'Turkish', 'Portuguese', 'Spanish']
+    task_list =  ['all_tasks', 'boolq', 'gigaword', 'webnlg', 'samsum']
+    #task_list = ['English', 'Dutch', 'Turkish', 'Portuguese', 'Spanish']
     
     device = 'cuda'
     eval_len = 100
@@ -336,44 +368,27 @@ if __name__ == "__main__":
                 eval_len=eval_len,
                 eval_rouge=eval_rouge,
                 eval_perplexity=eval_perplexity,
-                output_dir=model_path
+                output_dir=model_path,
+                is_dpa=is_dpa,
+                global_dpa_path=global_dpa_path
             )
             performance_for_model[task] = results
 
-        performance_json_path = os.path.join(model_path, "performance.json")
-        with open(performance_json_path, "w") as f:
-            json.dump(performance_for_model, f)
-        print(f"Saved performance results for model {model_path} to {performance_json_path}")
-    
-    path_model_clustred = 'output_aya/Llama-3.2-1B/fully_distributed_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250403104147'
-    model_list = [path_model_clustred + f'/cluster_{c}_checkpoint-200' for c in list(range(20))]
 
-    device = 'cuda'
-    eval_len = 100
-    eval_rouge = True
-    eval_perplexity = True
+        if is_dpa:
+            ckpts = glob.glob(model_path)
+            latest_ckpt = max(ckpts, key=os.path.getctime)
+            latest_ckpt = latest_ckpt + '/local'
+            performance_json_path = os.path.join(latest_ckpt, "performance.json")
+            with open(performance_json_path, "w") as f:
+                json.dump(performance_for_model, f)
+            print(f"Saved performance results for model {model_path} to {performance_json_path}")
 
-    # For each model, evaluate on each task and then save a performance JSON in the model path.
-    for model_path in model_list:
-        performance_for_model = {}
-        for task in task_list:
-            print(f"\nEvaluating Model: {model_path} for Task: {task}")
-            results = evaluate_model(
-                model_path=model_path,
-                base_model=base_model,
-                dataset_name=dataset_name,
-                task=task,
-                device=device,
-                eval_len=eval_len,
-                eval_rouge=eval_rouge,
-                eval_perplexity=eval_perplexity,
-                output_dir=model_path
-            )
-            performance_for_model[task] = results
+        else:
+            performance_json_path = os.path.join(model_path, "performance.json")
+            with open(performance_json_path, "w") as f:
+                json.dump(performance_for_model, f)
+            print(f"Saved performance results for model {model_path} to {performance_json_path}")
 
-        performance_json_path = os.path.join(model_path, "performance.json")
-        with open(performance_json_path, "w") as f:
-            json.dump(performance_for_model, f)
-        print(f"Saved performance results for model {model_path} to {performance_json_path}")
 
     
