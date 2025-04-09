@@ -143,6 +143,44 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
                 cluster_agg_models.append(cluster_dict)
 
             return cluster_agg_models, global_auxiliary, idx
+
+    elif fed_args.fed_alg in ['router']:
+
+        n_clusters = 4
+
+        # Separate models into clusters -------------------------------------
+        clusters_models = {}
+        for cluster in range(n_clusters):
+            print(clusters_models.keys())
+            print(idx)
+            if cluster not in clusters_models.keys():
+                clusters_models[cluster] = []
+            clusters_models[cluster].append([local_dict_list[center] for center in range(len(local_dict_list)) if idx[center] == cluster]) #aggregate only selected clients
+
+            if clusters_models[cluster] == [[]]:
+                clusters_models[cluster] = []
+                clusters_models[cluster].append([global_dict[cluster]]) #if no client selected in that cluster, use the previous global model
+
+        # Aggregate models within each cluster ------------------------------
+        cluster_agg_models = [] 
+
+        #print(clusters_models.keys())
+        #print(len(clusters_models[0]))
+        #print(len(clusters_models[0][0]))
+        #print(round)
+
+        for cluster in range(n_clusters):
+            cluster_dict = {}
+            if round == 0:
+                for key in global_dict.keys():
+                    cluster_dict[key] = sum([model[key] for model in clusters_models[cluster][0]]) / len(clusters_models[cluster][0])
+            else:
+                for key in global_dict[cluster].keys():
+                    cluster_dict[key] = sum([model[key] for model in clusters_models[cluster][0]]) / len(clusters_models[cluster][0])
+            cluster_agg_models.append(cluster_dict)
+
+        return cluster_agg_models, global_auxiliary, idx
+
     
     elif fed_args.fed_alg == 'personalized':
         

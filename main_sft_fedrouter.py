@@ -9,6 +9,7 @@ from peft import get_peft_model, get_peft_model_state_dict, set_peft_model_state
 
 from utils import *
 from federated_learning import *
+from federated_learning.router_utils import *
 from config import get_config, save_config, get_model_config, get_training_args
 
 # ===== Define the arguments =====
@@ -85,39 +86,43 @@ data_cluster_labels = {}
 for round in tqdm(range(fed_args.num_rounds)):
 
     clients_this_round = get_clients_this_round(fed_args, round)
-
-    if round + 1 == fed_args.sim_round: #return all clients
+    
+    if round  == 0: #return all clients
         clients_this_round = list(range(fed_args.num_clients))
 
     print(f">> ==================== Round {round+1} : {clients_this_round} ====================")
     
     for client in range(fed_args.num_clients):
+        sub_dataset = get_dataset_this_round(local_datasets[client], round, fed_args, script_args)
 
         if client not in clients_this_round:
             training_loss[client].append(-1)            # -1 is an indicator of not training
             continue
         
-        print(f'Setting parameters for client {client}...')
-
+        print(f"Getting Embeddings for client {client}...")
         if client not in client_embeddings_centers:
             client_embeddings_centers[client], data_cluster_labels[client] = cluster_embeddings(
-                            get_client_embedding(script_args, fed_args, local_datasets[client]),
+                            get_client_embedding(script_args, fed_args, sub_dataset),
                             num_clusters = fed_args.n_clusters
                             )
+        print(f"Client {client} embeddings center shape: {client_embeddings_centers[client].shape}")
 
-        clusters = separete_data_into_clusters(client_embeddings_centers[client], data_cluster_labels[client])
+
+        clusters_datasets = separate_data_into_clusters(sub_dataset, data_cluster_labels[client])
         
         local_dict_list[client] = []
-
-        for c, cluster_indexes in enumerate(clusters):
+        
+        training_loss_aux = []
+        for c, cluster_dataset in enumerate(clusters_datasets):
             
             #starts with global model
-            if round > fed_args.sim_round:
-                set_peft_model_state_dict(model, global_dict[idx[client] - 1])
+            print(f'Setting parameters for client {client}...')
+            if round >= 1:
+                set_peft_model_state_dict(model, global_dict[get_most_similar_adapter(global_centroids, global_clusters, client_embeddings_centers[client][c])])
             else:
                 set_peft_model_state_dict(model, global_dict)
 
-            cluster_dataset = sub_dataset.select(cluster_indexes) #use cluster dataset only
+            #cluster_dataset = sub_dataset.select(cluster_indexes) #use cluster dataset only
 
             if not os.path.exists(os.path.join(script_args.output_dir, "clients_adapters")):
                 os.makedirs(os.path.join(script_args.output_dir, "clients_adapters"))
@@ -141,7 +146,7 @@ for round in tqdm(range(fed_args.num_rounds)):
                 )
 
             results = trainer.train()
-            training_loss[client].append(results.training_loss)
+            training_loss_aux.append(results.training_loss)
 
             local_dict_list[client].append(copy.deepcopy(get_peft_model_state_dict(model)))
 
@@ -152,20 +157,28 @@ for round in tqdm(range(fed_args.num_rounds)):
                     f"clients_adapters/checkpoint-{round+1}_client{client}_cluster{c}"
                     )
                 )
-        
-        global_centroids, global_clusters = cluster_clients_centroids(client_embeddings_centers, num_clusters = 4)
+            
+        training_loss[client].append(np.mean(training_loss_aux))
+            
+    client_embeddings_centers_list = []
+    for client in range(fed_args.num_clients):
+        for client_embeddings_center in client_embeddings_centers[client]:
+            client_embeddings_centers_list.append(client_embeddings_center)
 
-        #saving local and global centroids
-        centroids_path = os.path.join(script_args.output_dir, f"centroids_{round+1}.npy")
-        np.save(centroids_path, global_centroids)
-        client_embeddings_path = os.path.join(script_args.output_dir, f"client_embeddings_{round+1}.npy")
-        np.save(client_embeddings_path, client_embeddings_centers)
+    global_centroids, global_clusters = cluster_clients_centroids(client_embeddings_centers_list, num_clusters = 4)
 
-        #Associate each adapter with a cluster
-        all_local_dict_list = []
-        for client in range(fed_args.num_clients):
-            for adapter in local_dict_list[client]:
-                all_local_dict_list.append(adapter)
+    #saving local and global centroids
+    print(f"Saving centroids...")
+    centroids_path = os.path.join(script_args.output_dir, f"centroids_{round+1}.npy")
+    np.save(centroids_path, global_centroids)
+    client_embeddings_path = os.path.join(script_args.output_dir, f"client_embeddings_{round+1}.npy")
+    np.save(client_embeddings_path, client_embeddings_centers)
+
+    #Associate each adapter with a cluster
+    all_local_dict_list = []
+    for client in range(fed_args.num_clients):
+        for adapter in local_dict_list[client]:
+            all_local_dict_list.append(adapter)
 
     # ===== Server aggregates the local models =====
     
