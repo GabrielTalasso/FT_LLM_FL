@@ -151,7 +151,7 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
         # Separate models into clusters -------------------------------------
         clusters_models = {}
         for cluster in range(n_clusters):
-            print(f'Idexes returned: {len(idx)}, Models returned: {len(local_dict_list)}')
+            print(f'#Index returned: {len(idx)}, Models returned: {len(local_dict_list)}')
             print(clusters_models.keys())
             print(idx)
             if cluster not in clusters_models.keys():

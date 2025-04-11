@@ -180,23 +180,26 @@ for round in tqdm(range(fed_args.num_rounds)):
         os.makedirs(os.path.dirname(client_embeddings_path), exist_ok=True)
         np.save(client_embeddings_path, client_embeddings_centers)
 
-    
-    #Getting only the global clusters for clients this round 
-    global_clusters_this_round = []
-    for i in range(0, len(global_clusters), fed_args.n_clusters):
-        if i // fed_args.n_clusters in clients_this_round:
-            global_clusters_this_round += global_clusters[i:i+fed_args.n_clusters]
-
-    #Associate each adapter with a cluster
+    #Flattening the local_dict_list
     all_local_dict_list = []
     for client in range(fed_args.num_clients):
         for adapter in local_dict_list[client]:
             all_local_dict_list.append(adapter)
+    
+    print("Length of all_local_dict_list: ", len(all_local_dict_list))
+
+    #Getting only the global clusters and adapters for clients this round 
+    global_clusters_this_round = []
+    local_dict_list_this_round = []
+    for i in range(0, len(global_clusters), fed_args.n_clusters):
+        if i // fed_args.n_clusters in clients_this_round:
+            global_clusters_this_round += global_clusters[i:i+fed_args.n_clusters].tolist()
+            local_dict_list_this_round += all_local_dict_list[i:i+fed_args.n_clusters]
 
     # ===== Server aggregates the local models =====
     
     global_dict, global_auxiliary, idx = global_aggregate(
-            fed_args, script_args, global_dict, all_local_dict_list, sample_num_list, \
+            fed_args, script_args, global_dict, local_dict_list_this_round, sample_num_list, \
             clients_this_round, round, proxy_dict=proxy_dict, \
             opt_proxy_dict=opt_proxy_dict,
             auxiliary_info=(global_auxiliary, auxiliary_delta_dict),

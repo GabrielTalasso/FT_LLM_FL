@@ -40,7 +40,7 @@ def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_
 
         trainer = SFTTrainer(
             model=model,
-            tokenizer=tokenizer,
+            processing_class=tokenizer,
             args=training_args,
             #max_seq_length=script_args.seq_length,
             train_dataset=local_dataset,
