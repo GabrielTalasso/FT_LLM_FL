@@ -17,7 +17,7 @@ import glob
 sys.path.append(".")
 from utils.template import TEMPLATE_DICT
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 def load_model(path, MODEL_NAME, DEVICE = 'cuda', adapter_name = None, global_dpa_path = None):
 
@@ -310,18 +310,18 @@ if __name__ == "__main__":
     is_dpa = False
     global_dpa_path = None
 
-    #path_model_clustred = 'output_aya/Llama-3.2-1B/clustered_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250403103502'
-    #model_list = ['output_aya/Llama-3.2-1B/fedavg_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250403103436/cluster_0_checkpoint-200', #fedavg
-    #                path_model_clustred + '/cluster_0_checkpoint-200', #clustered
-    #                path_model_clustred + '/cluster_1_checkpoint-200', #clustered
-    #                path_model_clustred + '/cluster_2_checkpoint-200', #clustered
-    #                path_model_clustred + '/cluster_3_checkpoint-200', #clustered
-    #]
+    path_model_clustred = 'output_multitask/Llama-3.2-1B/ROUTER_multidomain_fix1_multitask_router_c20s5_i10_b16a1_l1024_r8a16_20250410095821'
+    model_list = [#'output_aya/Llama-3.2-1B/fedavg_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250403103436/cluster_0_checkpoint-200', #fedavg
+                    path_model_clustred + '/cluster_0_checkpoint-200', #clustered
+                    path_model_clustred + '/cluster_1_checkpoint-200', #clustered
+                    path_model_clustred + '/cluster_2_checkpoint-200', #clustered
+                    path_model_clustred + '/cluster_3_checkpoint-200', #clustered
+    ]
 
     ##Multitask fully distributed
-    path_model_clustred = 'output_multitask/Llama-3.2-1B/fully_distributed_iid_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250407172927'
-    model_list = [path_model_clustred + f'/cluster_{c}_checkpoint-200' for c in list(range(20))]
-    model_list.append('output_multitask/Llama-3.2-1B/fedavg_iid_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250407172809/cluster_0_checkpoint-200')
+    #path_model_clustred = 'output_multitask/Llama-3.2-1B/fully_distributed_iid_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250407172927'
+    #model_list = [path_model_clustred + f'/cluster_{c}_checkpoint-200' for c in list(range(20))]
+    #model_list.append('output_multitask/Llama-3.2-1B/fedavg_iid_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250407172809/cluster_0_checkpoint-200')
 
     #global_dpa_path = 'output_multitask/Llama-3.2-1B/feddpa-multidomain_multitask_clustered_c20s5_i5_b16a1_l1024_r8a16_20250407111246/global_checkpoint-200/global'
     #local_dpa_path =  'output_multitask/Llama-3.2-1B/feddpa-multidomain_multitask_clustered_c20s5_i5_b16a1_l1024_r8a16_20250407111246/local_adapters/'

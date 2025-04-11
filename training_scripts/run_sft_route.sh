@@ -21,13 +21,13 @@ output_dir="output_multitask"
 
 dataset_sample=400000
 
-sim_alias='ROUTER_1domain'
+sim_alias='ROUTER_1domain_tfix1'
 
 #model_name_or_path='HuggingFaceTB/SmolLM-1.7B'
 #model_name_or_path='HuggingFaceTB/SmolLM-135M'
 model_name_or_path='unsloth/Llama-3.2-1B'
 
-gpu='1'
+gpu='0'
 fed_alg="router"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_fedrouter.py \
@@ -55,3 +55,4 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft_fedrouter.py \
  --split_strategy "multitask_clusters" \
  --train_split 0.8 \
  --sim_alias $sim_alias \
+ --global_n_clusters 4

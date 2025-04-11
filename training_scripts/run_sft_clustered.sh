@@ -21,13 +21,13 @@ output_dir="output_multitask"
 
 dataset_sample=400000
 
-sim_alias='clustered_iid'
+sim_alias='clustered_in_round_1'
 
 #model_name_or_path='HuggingFaceTB/SmolLM-1.7B'
 #model_name_or_path='HuggingFaceTB/SmolLM-360M'
 model_name_or_path='unsloth/Llama-3.2-1B'
 
-gpu='4'
+gpu='0'
 fed_alg="clustered"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
@@ -50,8 +50,8 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
  --load_in_4bit True \
  --output_dir $output_dir \
  --template "alpaca" \
- --sim_round 10 \
+ --sim_round 2 \
  --n_clusters 4 \
- --split_strategy "multitask_iid" \
+ --split_strategy "multitask_clusters" \
  --train_split 0.8 \
  --sim_alias $sim_alias \

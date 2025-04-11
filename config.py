@@ -25,7 +25,8 @@ class FedArguments:
     save_model_freq: Optional[int] = field(default=1, metadata={"help": "the frequency to save the model. 10 means save every 10 rounds"})
     sim_round: Optional[int] = field(default=-1, metadata={"help": "Round to calculate the similarities. -1 means not calculate"})
     n_clusters: Optional[int] = field(default=5, metadata={"help": "the number of clusters for the clustered algorithm"})
-    
+    global_n_clusters: Optional[int] = field(default=5, metadata={"help": "the number of clusters for the global model"})
+
 @dataclass
 class ScriptArguments:
 
