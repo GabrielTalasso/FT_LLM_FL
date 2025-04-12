@@ -17,7 +17,7 @@ import glob
 sys.path.append(".")
 from utils.template import TEMPLATE_DICT
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 def load_model(path, MODEL_NAME, DEVICE = 'cuda', adapter_name = None, global_dpa_path = None):
 
@@ -310,7 +310,7 @@ if __name__ == "__main__":
     is_dpa = False
     global_dpa_path = None
 
-    path_model_clustred = 'output_multitask/Llama-3.2-1B/ROUTER_multidomain_fix1_multitask_router_c20s5_i10_b16a1_l1024_r8a16_20250410095821'
+    path_model_clustred = 'output_multitask/Llama-3.2-1B/clustered_in_round_1_multitask_clustered_c20s5_i10_b16a1_l1024_r8a16_20250409165815'
     model_list = [#'output_aya/Llama-3.2-1B/fedavg_aya_dataset_clustered_c20s5_i10_b16a1_l1024_r8a16_20250403103436/cluster_0_checkpoint-200', #fedavg
                     path_model_clustred + '/cluster_0_checkpoint-200', #clustered
                     path_model_clustred + '/cluster_1_checkpoint-200', #clustered

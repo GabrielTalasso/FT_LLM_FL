@@ -13,21 +13,21 @@ lr=5e-4
 # local_data_dir=""       # you may uncomment this line if your data is stored locally and include it in the python command
 
 #dataset_name="vicgalle/alpaca-gpt4"
-#dataset_name='CohereForAI/aya_dataset'
+dataset_name='CohereForAI/aya_dataset'
 #dataset_name='databricks/databricks-dolly-15k'
-dataset_name="multitask"
+#dataset_name="multitask"
 
-output_dir="output_multitask"
+output_dir="output_aya"
 
 dataset_sample=400000
 
-sim_alias='ROUTER_iid_tfix1'
+sim_alias='ROUTER_multidomain_tfix1'
 
 #model_name_or_path='HuggingFaceTB/SmolLM-1.7B'
 #model_name_or_path='HuggingFaceTB/SmolLM-135M'
 model_name_or_path='unsloth/Llama-3.2-1B'
 
-gpu='3'
+gpu='2'
 fed_alg="router"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_fedrouter.py \
@@ -51,8 +51,8 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft_fedrouter.py \
  --output_dir $output_dir \
  --template "alpaca" \
  --sim_round -1 \
- --n_clusters 4 \
- --split_strategy "multitask_iid" \
+ --n_clusters 2 \
+ --split_strategy "language_multi_domain" \
  --train_split 0.8 \
  --sim_alias $sim_alias \
- --global_n_clusters 4
+ --global_n_clusters 5
