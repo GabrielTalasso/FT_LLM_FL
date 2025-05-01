@@ -2,6 +2,8 @@ import copy
 import os
 from tqdm import tqdm
 import numpy as np
+import time
+#time.sleep(15*60)
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import DataCollatorForCompletionOnlyLM
@@ -81,7 +83,7 @@ idx = None
 
 for round in tqdm(range(fed_args.num_rounds)):
 
-    clients_this_round = get_clients_this_round(fed_args, round)
+    clients_this_round = get_clients_this_round(fed_args,script_args,  round)
 
     if round + 1 == fed_args.sim_round: #return all clients
         clients_this_round = list(range(fed_args.num_clients))
@@ -131,6 +133,11 @@ for round in tqdm(range(fed_args.num_rounds)):
             global_auxiliary=global_auxiliary,
             packing=packing
         )
+
+        # ===== Save initial model adapter in checkpoint-0 =====
+        if round == 0 and client == clients_this_round[0]:
+            # Save the initial model adapter in checkpoint-0, without training
+            trainer.save_model(os.path.join(script_args.output_dir, f"checkpoint-0"))
 
         print(f'Training client {client}...')
         results = trainer.train()

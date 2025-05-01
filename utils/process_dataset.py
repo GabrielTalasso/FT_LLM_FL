@@ -22,6 +22,17 @@ def get_dataset(dataset_name, local_data_dir=None, train_split = 1):
         dataset = load_dataset(dataset_name, split="train")
         print('Start filtering languages')
         dataset = dataset.filter(lambda x: x['language'] in languages)
+
+    elif dataset_name in ['multi_language_clusters']:
+
+        languages_high = ['English', 'Dutch', 'Turkish', 'Portuguese', 'Spanish']
+        languages_mid = ['Filipino', 'Bengali', 'Standard Malay', 'Lithuanian', 'Tamil']
+        languages_low = ['Zulu', 'Irish', 'Nepali', 'Malayalam', 'Telugu']
+        languages = languages_high + languages_mid + languages_low
+
+        dataset = load_dataset("CohereForAI/aya_dataset", split="train")
+        print('Start filtering languages')
+        dataset = dataset.filter(lambda x: x['language'] in languages)
     
     elif dataset_name in ['fancyzhx/ag_news']:
         dataset = load_dataset(dataset_name, split="train")
@@ -64,7 +75,7 @@ def process_sft_dataset(dataset_name, dataset, dataset_sample):
     elif dataset_name in ["dominguesm/alpaca-data-pt-br"]:
         dataset = dataset.map(alpaca_format, remove_columns=['input', 'output'], desc=f"Preprocessing {dataset_name} for unified format.")
     
-    elif dataset_name in ["CohereForAI/aya_dataset"]:
+    elif dataset_name in ["CohereForAI/aya_dataset", 'multi_language_clusters']:
         dataset = dataset.map(alpaca_format_aya, remove_columns=['inputs', 'targets', 'language_code', 'annotation_type', 'user_id'],
                               desc=f"Preprocessing {dataset_name} for unified format.")
 

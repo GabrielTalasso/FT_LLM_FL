@@ -4,14 +4,14 @@ import torch
 from federated_learning.fed_clustered import calculate_similarity, make_clusters
 from federated_learning.fed_personalized import get_adapter
 
-def get_clients_this_round(fed_args, round):
+def get_clients_this_round(fed_args, script_args, round):
     if (fed_args.fed_alg).startswith('local'):
         clients_this_round = [int((fed_args.fed_alg)[-1])]
     else:
         if fed_args.num_clients < fed_args.sample_clients:
             clients_this_round = list(range(fed_args.num_clients))
         else:
-            random.seed(round)
+            random.seed(script_args.seed + round)
             clients_this_round = sorted(random.sample(range(fed_args.num_clients), fed_args.sample_clients))
     return clients_this_round
 
@@ -141,6 +141,20 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
                 for key in global_dict[cluster].keys():
                     cluster_dict[key] = sum([model[key] for model in clusters_models[cluster][0]]) / len(clusters_models[cluster][0])
                 cluster_agg_models.append(cluster_dict)
+
+            # Aggregate only the A LoRA adapter across clusters, keep B per cluster
+            # find all A-keys
+            #a_keys = [k for k in cluster_agg_models[0].keys() if 'lora_A' in k]
+            ## compute cross-cluster average for A
+            #aggregated_A = {
+            #    k: sum(c[k] for c in cluster_agg_models) / len(cluster_agg_models)
+            #    for k in a_keys
+            #}
+            ## replace A in each cluster model
+            #for c_dict in cluster_agg_models:
+            #    for k, v in aggregated_A.items():
+            #        c_dict[k] = v
+
 
             return cluster_agg_models, global_auxiliary, idx
 

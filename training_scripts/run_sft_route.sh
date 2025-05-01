@@ -1,11 +1,11 @@
 max_steps=10
 num_train_epochs=1
-num_rounds=200
+num_rounds=100
 batch_size=16
 gradient_accumulation_steps=1
 seq_length=1024
-num_clients=20
-sample_clients=5
+num_clients=10
+sample_clients=10
 lora_r=8
 lora_alpha=16   # twice of lora_r
 lr=5e-4
@@ -17,17 +17,17 @@ dataset_name='CohereForAI/aya_dataset'
 #dataset_name='databricks/databricks-dolly-15k'
 #dataset_name="multitask"
 
-output_dir="output_aya"
+output_dir="output_aya/all"
 
 dataset_sample=400000
 
-sim_alias='ROUTER_multidomain_tfix1'
+sim_alias='ROUTER_1domain'
 
 #model_name_or_path='HuggingFaceTB/SmolLM-1.7B'
-#model_name_or_path='HuggingFaceTB/SmolLM-135M'
-model_name_or_path='unsloth/Llama-3.2-1B'
+model_name_or_path='HuggingFaceTB/SmolLM-135M'
+#model_name_or_path='unsloth/Llama-3.2-1B'
 
-gpu='2'
+gpu='4'
 fed_alg="router"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_fedrouter.py \

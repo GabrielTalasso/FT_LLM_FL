@@ -86,7 +86,7 @@ data_cluster_labels = {}
 
 for round in tqdm(range(fed_args.num_rounds)):
 
-    clients_this_round = get_clients_this_round(fed_args, round)
+    clients_this_round = get_clients_this_round(fed_args, script_args, round)
     
     if round  == 0: #return all clients
         clients_this_round = list(range(fed_args.num_clients))
@@ -173,12 +173,19 @@ for round in tqdm(range(fed_args.num_rounds)):
     
         #saving local and global centroids
         print(f"Saving centroids...")
+
         centroids_path = os.path.join(script_args.output_dir, f"centers/centroids_{round+1}.npy")
         os.makedirs(os.path.dirname(centroids_path), exist_ok=True)
         np.save(centroids_path, global_centroids)
+
         client_embeddings_path = os.path.join(script_args.output_dir, f"centers/client_embeddings_{round+1}.npy")
         os.makedirs(os.path.dirname(client_embeddings_path), exist_ok=True)
         np.save(client_embeddings_path, client_embeddings_centers)
+
+        clusters_path = os.path.join(script_args.output_dir, f"centers/global_clusters_{round+1}.npy")
+        os.makedirs(os.path.dirname(clusters_path), exist_ok=True)
+        np.save(clusters_path, global_clusters)
+
 
     #Flattening the local_dict_list
     all_local_dict_list = []

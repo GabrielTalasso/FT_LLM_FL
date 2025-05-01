@@ -1,33 +1,35 @@
 max_steps=10
 num_train_epochs=1
-num_rounds=200
+num_rounds=100
 batch_size=16
 gradient_accumulation_steps=1
 seq_length=1024
-num_clients=20
-sample_clients=5
-lora_r=8
-lora_alpha=16   # twice of lora_r
+num_clients=10
+sample_clients=10
+lora_r=32
+lora_alpha=64  # twice of lora_r
 lr=5e-4
 
 # local_data_dir=""       # you may uncomment this line if your data is stored locally and include it in the python command
 
 #dataset_name="vicgalle/alpaca-gpt4"
-#dataset_name='CohereForAI/aya_dataset'
+dataset_name='CohereForAI/aya_dataset'
 #dataset_name='databricks/databricks-dolly-15k'
-dataset_name="multitask"
+#dataset_name="multitask"
+#dataset_name="multi_language_clusters"
 
-output_dir="output_multitask"
+output_dir="output_aya/bracis"
 
 dataset_sample=400000
 
-sim_alias='clustered_in_round_1'
+sim_alias='fedavg_lora32'
 
 #model_name_or_path='HuggingFaceTB/SmolLM-1.7B'
-#model_name_or_path='HuggingFaceTB/SmolLM-360M'
+#model_name_or_path='HuggingFaceTB/SmolLM-135M'
 model_name_or_path='unsloth/Llama-3.2-1B'
+#model_name_or_path='unsloth/Llama-3.2-3B'
 
-gpu='0'
+gpu='4'
 fed_alg="clustered"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
@@ -50,8 +52,8 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
  --load_in_4bit True \
  --output_dir $output_dir \
  --template "alpaca" \
- --sim_round 2 \
- --n_clusters 4 \
- --split_strategy "multitask_clusters" \
+ --sim_round 1 \
+ --n_clusters 1 \
+ --split_strategy "language_clusters" \
  --train_split 0.8 \
  --sim_alias $sim_alias \

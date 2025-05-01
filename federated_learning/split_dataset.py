@@ -46,6 +46,22 @@ def split_dataset(fed_args, script_args, dataset, n_domains = 2):
 
             local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i % n_clients_in_cluster))
     
+    if fed_args.split_strategy == "multi_language_clusters":
+        
+        languages_high = ['English', 'Dutch', 'Turkish', 'Portuguese', 'Spanish']
+        languages_mid = ['Filipino', 'Bengali', 'Standard Malay', 'Lithuanian', 'Tamil']
+        languages_low = ['Zulu', 'Irish', 'Nepali', 'Malayalam', 'Telugu']
+        languages = languages_high + languages_mid + languages_low
+
+        n_clients_in_cluster = fed_args.num_clients // len(languages)
+
+        for i in range(fed_args.num_clients):
+            language = languages[i // n_clients_in_cluster]
+            cluster_dataset = dataset.filter(lambda x: x['language'] == language)
+            cluster_dataset = cluster_dataset.shuffle(seed=script_args.seed)
+
+            local_datasets.append(cluster_dataset.shard(n_clients_in_cluster, i % n_clients_in_cluster))
+
     if fed_args.split_strategy == "ag_news_clusters":
         n_clients_in_cluster = fed_args.num_clients // 4
         categories = [0, 1, 2, 3] # 0: World, 1: Sports, 2: Business, 3: Sci/Tech
