@@ -4,8 +4,8 @@ num_rounds=200
 batch_size=16
 gradient_accumulation_steps=1
 seq_length=1024
-num_clients=20
-sample_clients=5
+num_clients=10
+sample_clients=2
 lora_r=8
 lora_alpha=16   # twice of lora_r
 lr=5e-4
@@ -21,13 +21,13 @@ output_dir="output_multitask"
 
 dataset_sample=400000
 
-sim_alias='feddpa-iid'
+sim_alias='feddpa'
 
 #model_name_or_path='HuggingFaceTB/SmolLM-1.7B'
-#model_name_or_path='HuggingFaceTB/SmolLM-135M'
-model_name_or_path='unsloth/Llama-3.2-1B'
+model_name_or_path='HuggingFaceTB/SmolLM-135M'
+#model_name_or_path='unsloth/Llama-3.2-1B'
 
-gpu='3'
+gpu='0'
 fed_alg="clustered"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_feddpa.py \

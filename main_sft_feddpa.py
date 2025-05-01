@@ -12,6 +12,56 @@ from federated_learning import *
 from config import get_config, save_config, get_model_config, get_training_args
 import glob
 
+import torch
+from peft import PeftModel, get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict
+
+class WeightedAdapterModel(torch.nn.Module):
+    """Custom model that combines outputs from global and local adapters with weighting."""
+    
+    def __init__(self, base_model, global_adapter_dict, peft_config, alpha=0.5):
+        super().__init__()
+        self.alpha = alpha
+        
+        # Create the base model with global adapter (frozen)
+        self.model_with_global = get_peft_model(base_model, peft_config, adapter_name="global")
+        set_peft_model_state_dict(self.model_with_global, global_adapter_dict, adapter_name="global")
+        
+        # Freeze the global adapter
+        for param in self.model_with_global.parameters():
+            param.requires_grad = False
+        
+        # Add local adapter on top
+        self.model_with_local = get_peft_model(base_model, peft_config, adapter_name="local")
+        
+        # Ensure only local adapter parameters are trainable
+        for name, param in self.model_with_local.named_parameters():
+            if "local" not in name:
+                param.requires_grad = False
+    
+    def forward(self, **kwargs):
+        # Get outputs from both models
+        with torch.no_grad():
+            global_outputs = self.model_with_global(**kwargs)
+        local_outputs = self.model_with_local(**kwargs)
+        
+        # Combine logits with weighting
+        combined_outputs = global_outputs.__class__(
+            logits=self.alpha * global_outputs.logits + (1 - self.alpha) * local_outputs.logits
+        )
+        
+        return combined_outputs
+    
+    def get_local_adapter_state_dict(self):
+        return get_peft_model_state_dict(self.model_with_local, adapter_name="local")
+    
+    def set_local_adapter_state_dict(self, state_dict):
+        set_peft_model_state_dict(self.model_with_local, state_dict, adapter_name="local")
+    
+    def save_pretrained(self, save_directory):
+        # Save both adapters
+        self.model_with_global.save_pretrained(f"{save_directory}/global")
+        self.model_with_local.save_pretrained(f"{save_directory}/local")
+
 # ===== Define the arguments =====
 script_args, fed_args, peft_config = get_config()
 training_args = get_training_args(script_args, script_args.learning_rate)
@@ -127,7 +177,7 @@ for round in tqdm(range(fed_args.num_rounds)):
         for name, param in model.named_parameters():
             print(name, param[0:10][0][0])
             c += 1
-            if c == 4:
+            if c == 10:
                 break
 
         sub_dataset = get_dataset_this_round(local_datasets[client], round, fed_args, script_args)
@@ -155,44 +205,49 @@ for round in tqdm(range(fed_args.num_rounds)):
         results = trainer.train()
         #training_loss[client].append(results.training_loss)
 
-        # Save updated global adapter state for aggregation
+        # After training the global adapter
         updated_global_dict = copy.deepcopy(get_peft_model_state_dict(model, adapter_name="global"))
         client_global_updates[client] = updated_global_dict
-        
+
         print('Global adapter layers - After training:')
         c = 0
         for name, param in model.named_parameters():
             print(name, param[0:10][0][0])
             c += 1
-            if c == 4:
+            if c == 10:
                 break
 
         # Update auxiliary information for SCAFFOLD if used
         if fed_args.fed_alg == 'scaffold':
             auxiliary_model_list[client], auxiliary_delta_dict[client] = trainer.get_auxiliary_param()
 
-        # 3) Freeze global adapter by merging it into the base model
-        trained_model_with_global = model.merge_and_unload()
-        
-        # 4) Add local adapter on top of the merged model (with global adapter knowledge)
-        local_adapter_config = copy.deepcopy(peft_config)
-        model = get_peft_model(trained_model_with_global, local_adapter_config, adapter_name="local")
-        
+        # Instead of merging global adapter, use weighted adapter approach
+        #from weighted_adapter_model import WeightedAdapterModel
+
+        # Create weighted adapter model
+        weighted_model = WeightedAdapterModel(
+            base_model=copy.deepcopy(base_model),
+            global_adapter_dict=updated_global_dict,
+            peft_config=copy.deepcopy(peft_config),
+            alpha=0.5
+        )
+
         # Load previous local adapter state if it exists
         if local_adapter_dicts[client]:  # Check if dict is not empty
-            set_peft_model_state_dict(model, local_adapter_dicts[client], adapter_name="local")
-        
+            weighted_model.set_local_adapter_state_dict(local_adapter_dicts[client])
+
         print('Local adapter layers - Before training:')
         c = 0
-        for name, param in model.named_parameters():
-            print(name, param[0:10][0][0])
-            c += 1
-            if c == 4:
-                break
+        for name, param in weighted_model.named_parameters():
+            if param.requires_grad:  # Only show trainable parameters
+                print(name, param[0:10][0][0])
+                c += 1
+                if c == 10:
+                    break
 
-        # Train only the local adapter
+        # Train only the local adapter with weighted influence from global
         trainer = get_fed_local_sft_trainer(
-            model=model,
+            model=weighted_model.model_with_local,  # We train only the local model, but use weighted forward pass
             tokenizer=tokenizer,
             training_args=training_args,
             local_dataset=sub_dataset,
@@ -206,19 +261,19 @@ for round in tqdm(range(fed_args.num_rounds)):
             packing=packing
         )
 
-        print(f'Training local adapter for client {client}...')
+        print(f'Training local adapter for client {client} with alpha={0.5}...')
         results = trainer.train()
         training_loss[client].append(results.training_loss)
-        
+
         # Save the local adapter state
-        local_adapter_dicts[client] = copy.deepcopy(get_peft_model_state_dict(model, adapter_name="local"))
-        
+        local_adapter_dicts[client] = weighted_model.get_local_adapter_state_dict()
         print('Local adapter layers - After training:')
+
         c = 0
-        for name, param in model.named_parameters():
+        for name, param in weighted_model.named_parameters():
             print(name, param[0:10][0][0])
             c += 1
-            if c == 4:
+            if c == 10:
                 break
 
         # Save both adapters separately
