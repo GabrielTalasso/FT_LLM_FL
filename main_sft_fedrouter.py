@@ -9,6 +9,7 @@ from trl import DataCollatorForCompletionOnlyLM
 from peft import get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict, prepare_model_for_kbit_training
 
 from utils import *
+from utils.utils import default_evaluation
 from federated_learning import *
 from federated_learning.router_utils import *
 from config import get_config, save_config, get_model_config, get_training_args
@@ -20,15 +21,15 @@ save_config(script_args, fed_args)
 print(script_args, fed_args)
 
 # ===== Load the dataset =====
-if script_args.train_split < 1:
-    dataset, dataset_test = get_dataset(script_args.dataset_name, script_args.local_data_dir, script_args.train_split)
-else:
-    dataset = get_dataset(script_args.dataset_name, script_args.local_data_dir)
+dataset, dataset_test = get_dataset(script_args.dataset_name, script_args.local_data_dir, script_args.train_split)
 
-dataset = process_sft_dataset(script_args.dataset_name, dataset, script_args.dataset_sample)
+dataset =      process_sft_dataset(script_args.dataset_name, dataset,      script_args.dataset_sample)
+dataset_test = process_sft_dataset(script_args.dataset_name, dataset_test, script_args.dataset_sample)
 
 # ===== Split the dataset into clients =====
 local_datasets = split_dataset(fed_args, script_args, dataset)
+local_datasets_test = split_dataset(fed_args, script_args, dataset_test)
+
 sample_num_list = [len(local_datasets[i]) for i in range(fed_args.num_clients)]
 
 # ===== Get model config =====
@@ -66,6 +67,13 @@ global_auxiliary, auxiliary_model_list, auxiliary_delta_dict = get_auxiliary_dic
 tokenizer = AutoTokenizer.from_pretrained(script_args.model_name_or_path, use_fast=False, padding_side="right")
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.unk_token   # following vicuna
+
+if tokenizer.eos_token == tokenizer.unk_token or tokenizer.pad_token == tokenizer.eos_token:
+    tokenizer.add_special_tokens({'pad_token': '<pad>'})
+    print(f"Pad token is set to {tokenizer.pad_token}.")
+
+print('Special tokens:', tokenizer.special_tokens_map)
+model.resize_token_embeddings(len(tokenizer))
 
 # ===== Define the formatting function (cater to TRL SFTTrainer)=====
 formatting_prompts_func, response_template = get_formatting_prompts_func(script_args.template, tokenizer.eos_token)
@@ -111,17 +119,26 @@ for round in tqdm(range(fed_args.num_rounds)):
         print(f"Client {client} embeddings center shape: {client_embeddings_centers[client].shape}")
 
         sub_dataset = get_dataset_this_round(local_datasets[client], round, fed_args, script_args)
-        #clusters_datasets = separate_data_into_clusters(sub_dataset, data_cluster_labels[client])
-        
+        sub_dataset_test = local_datasets_test[client]
+        sub_dataset_test = sub_dataset_test.shuffle(seed=round).select(range(script_args.max_eval_size) if script_args.max_eval_size < len(sub_dataset_test) else range(len(sub_dataset_test)))
+
+        if (round+1) == fed_args.evaluation_rounds:
+            test_embeddings = get_client_embedding(script_args, fed_args, sub_dataset_test)
+            infered_cluster_labels = clusterize_dataset(test_embeddings, global_centroids)
+            sub_dataset_test = sub_dataset_test.add_column('cluster_label', infered_cluster_labels)
+            print(f"Detected clusters in the test set for client {client}: {np.unique(infered_cluster_labels)}")
+
         local_dict_list[client] = []
         training_loss_aux = []
         
+        print('Length of global_dict: ', len(global_dict))
         for c in range(fed_args.n_clusters):
             cluster_dataset = sub_dataset.filter(lambda x: x['cluster_label'] == c)
             
             #starts with global model
             print(f'Setting parameters for client {client}...')
             if round >= 1:
+                print(f'Setting global idx {get_most_similar_adapter(global_centroids, global_clusters, client_embeddings_centers[client][c])} for client {client}...')
                 set_peft_model_state_dict(model, global_dict[get_most_similar_adapter(global_centroids, global_clusters, client_embeddings_centers[client][c])])
             else:
                 set_peft_model_state_dict(model, global_dict)
@@ -132,13 +149,26 @@ for round in tqdm(range(fed_args.num_rounds)):
             new_lr = cosine_learning_rate(round, fed_args.num_rounds, script_args.learning_rate, 1e-5)
             training_args = get_training_args(script_args, new_lr)
             
-            #same amount of computation for each cluster
-            #ajusted_max_steps = int(script_args.max_steps / fed_args.n_clusters)
-            #training_args.max_steps = max(ajusted_max_steps, 1)
-
-            #ajusted to the number of samples in each cluster subdataset
             ajusted_max_steps = (len(cluster_dataset) / len(sub_dataset)) * script_args.max_steps
             training_args.max_steps = max(floor(ajusted_max_steps), 1)
+
+            if (round+1) == fed_args.evaluation_rounds:
+                
+                global_centroid_id = get_most_similar_adapter(global_centroids, global_clusters, client_embeddings_centers[client][c])
+                test_dataset_this_cluster = sub_dataset_test.filter(lambda x: x['cluster_label'] == global_centroid_id)
+
+                print(f"Evaluating client {client} on the test set with size {len(test_dataset_this_cluster)} for round {round}...")
+                router_evaluation(
+                    model=model,
+                    tokenizer=tokenizer,
+                    dataset=test_dataset_this_cluster,
+                    client_id=client,
+                    round=round+1,
+                    formatting_prompts_func=formatting_prompts_func,
+                    script_args=script_args
+                )
+
+            print(f"Training for {len(cluster_dataset)} samples in cluster {c} for client {client} with {training_args.max_steps} steps...")
 
             trainer = get_fed_local_sft_trainer(
                 model=model,

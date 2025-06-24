@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 @dataclass
 class FedArguments:
     fed_alg: Optional[str] = field(default="fedavg", metadata={"help": "the algorithm to use"})
-    num_rounds: Optional[int] = field(default=500, metadata={"help": "the number of rounds"})
+    num_rounds: Optional[int] = field(default=100, metadata={"help": "the number of rounds"})
     num_clients: Optional[int] = field(default=2, metadata={"help": "the number of clients"})
     sample_clients: Optional[int] = field(default=2, metadata={"help": "the number of clients to sample"})
     split_strategy: Optional[str] = field(default="iid", metadata={"help": "the split strategy"})
@@ -26,6 +26,7 @@ class FedArguments:
     sim_round: Optional[int] = field(default=-1, metadata={"help": "Round to calculate the similarities. -1 means not calculate"})
     n_clusters: Optional[int] = field(default=5, metadata={"help": "the number of clusters for the clustered algorithm"})
     global_n_clusters: Optional[int] = field(default=5, metadata={"help": "the number of clusters for the global model"})
+    evaluation_rounds: Optional[int] = field(default=100, metadata={"help": "evaluation round"})
 
 @dataclass
 class ScriptArguments:
@@ -66,6 +67,8 @@ class ScriptArguments:
     local_data_dir: Optional[str] = field(default=None, metadata={"help": "the local data directory if you want to use downloaded data"})
     train_split: Optional[float] = field(default=1, metadata={"help": "the ratio of training data"})
     sim_alias: Optional[str] = field(default="none", metadata={"help": "the alias of the simulation"})
+    eval_batch_size: Optional[int] = field(default=64, metadata={"help": "the batch size for evaluation"})
+    max_eval_size: Optional[int] = field(default=100, metadata={"help": "the maximum size of the evaluation dataset"})
 
 parser = HfArgumentParser((ScriptArguments, FedArguments))
 script_args, fed_args, remanining = parser.parse_args_into_dataclasses(return_remaining_strings=True)

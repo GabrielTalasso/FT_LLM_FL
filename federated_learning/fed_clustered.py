@@ -88,6 +88,12 @@ def calculate_similarity(path, n_clients, round, layer = -1):
 
     return similarity_A, similarity_B
 
+def calculate_similarity_pair(adapter1, adapter2):
+    cos = torch.nn.CosineSimilarity(dim=0, eps=1e-6)
+    cos_sim = cos(adapter1, adapter2)
+
+    return cos_sim
+
 def make_clusters(similarity_matrix, n_clusters, round, save_dendrogram = True, path = None):
 
     pdist = spc.distance.pdist(similarity_matrix)

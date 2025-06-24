@@ -1,13 +1,15 @@
-max_steps=10
+max_steps=1
 num_train_epochs=1
-num_rounds=100
+num_rounds=3
+eval_round=1
 batch_size=16
+batch_size_eval=128
 gradient_accumulation_steps=1
 seq_length=1024
-num_clients=10
+num_clients=5
 sample_clients=10
-lora_r=32
-lora_alpha=64  # twice of lora_r
+lora_r=8
+lora_alpha=16  # twice of lora_r
 lr=5e-4
 
 # local_data_dir=""       # you may uncomment this line if your data is stored locally and include it in the python command
@@ -18,18 +20,18 @@ dataset_name='CohereForAI/aya_dataset'
 #dataset_name="multitask"
 #dataset_name="multi_language_clusters"
 
-output_dir="output_aya/bracis"
+output_dir="output_aya/baselines_big"
 
 dataset_sample=400000
 
-sim_alias='fedavg_lora32'
+sim_alias='testing_new_evaluation'
 
 #model_name_or_path='HuggingFaceTB/SmolLM-1.7B'
-#model_name_or_path='HuggingFaceTB/SmolLM-135M'
-model_name_or_path='unsloth/Llama-3.2-1B'
+model_name_or_path='HuggingFaceTB/SmolLM-135M'
+#model_name_or_path='unsloth/Llama-3.2-1B'
 #model_name_or_path='unsloth/Llama-3.2-3B'
 
-gpu='4'
+gpu='1'
 fed_alg="clustered"
 
 CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
@@ -54,6 +56,8 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft_clustered.py \
  --template "alpaca" \
  --sim_round 1 \
  --n_clusters 1 \
- --split_strategy "language_clusters" \
+ --split_strategy "language_multi_domain" \
  --train_split 0.8 \
  --sim_alias $sim_alias \
+ --evaluation_rounds $eval_round \
+ --eval_batch_size $batch_size_eval \

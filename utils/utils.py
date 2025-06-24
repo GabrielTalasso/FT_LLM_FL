@@ -1,4 +1,19 @@
 import math
+import sys
+import os
+from tqdm import tqdm
+import numpy as np
+import torch
+import json
+import pandas as pd
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from peft import PeftModel
+from datasets import load_dataset, concatenate_datasets
+from accelerate import Accelerator
+from torch.utils.data import DataLoader
+import evaluate
+import time
+import glob
 
 def cosine_learning_rate(current_round, total_rounds, initial_lr=0.001, min_lr=0):
     """
@@ -14,6 +29,59 @@ def cosine_learning_rate(current_round, total_rounds, initial_lr=0.001, min_lr=0
     cosine_lr = min_lr + 0.5 * (initial_lr - min_lr) * (1 + math.cos(math.pi * current_round / total_rounds))
     return cosine_lr
 
+def apply_template_to_dataset(dataset, formatting_prompts_func):
+    dataset = dataset.map(lambda x: {'inputs': formatting_prompts_func(x), 'targets': x['response']})
+    return dataset
+
+def get_model_responses(model, tokenizer, dataset, batch_size=8):
+    model_responses = []
+    for i in tqdm(range(0, len(dataset), batch_size)):
+        batch = dataset[i:i+batch_size]
+        #padding longest
+        tokenized = tokenizer(batch['inputs'], padding_side='left', padding='longest',return_tensors='pt', truncation=True, max_length=1024)
+        input_ids = tokenized['input_ids'].to('cuda')
+        attention_mask = tokenized['attention_mask'].to('cuda')
+        #print(input_ids[0], input_ids[1])
+        with torch.no_grad():
+            print(f"Generating responses for batch {i//batch_size + 1}/{len(dataset)//batch_size + 1}")
+            outputs = model.generate(input_ids=input_ids, attention_mask = attention_mask, max_new_tokens=512, num_beams=1,
+                                      do_sample=False, use_cache=True, eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.pad_token_id,
+                                      )
+            batch_responses = [tokenizer.decode(output, skip_special_tokens=True) for output in outputs]
+            model_responses.extend(batch_responses)
+    return model_responses
+
+def calcule_rogue1(model_responses, dataset):
+    metric = evaluate.load("rouge")
+    references = [dataset[i]['targets'] for i in range(len(dataset))]
+    predictions = [dataset[i]['model_responses'].split("### Response: ")[-1] for i in range(len(dataset))]
+
+    scores = metric.compute(predictions=predictions, references=references)
+    return scores
+
+def default_evaluation(model, tokenizer, dataset, client_id, round, formatting_prompts_func, script_args):
+    """
+    Default evaluation function to compute model responses and ROUGE scores.
+    """
+    print("Evaluating model...")
+    # Apply template to dataset
+    dataset = apply_template_to_dataset(dataset, formatting_prompts_func)
+    eval_responses = get_model_responses(model, tokenizer, dataset, batch_size=script_args.eval_batch_size)
+    dataset_with_responses = dataset.select(range(len(dataset)))
+    dataset_with_responses = dataset_with_responses.add_column('model_responses', eval_responses)
+    scores = calcule_rogue1(eval_responses, dataset_with_responses)
+    print(f"Evaluation scores: {scores}")
+
+    #verify output directory
+    if not os.path.exists(os.path.join(script_args.output_dir, "evals")):
+        os.makedirs(os.path.join(script_args.output_dir, "evals"))
+    # Save evaluation results
+    with open(os.path.join(script_args.output_dir, f"evals/rouge_client_{client_id}_round_{round}.json"), 'w') as f:
+        json.dump(scores, f, indent=4)
+    
+
+def router_evaluation(model, tokenizer, dataset, client_id, round, formatting_prompts_func, script_args):
+   pass
 
 if __name__ == "__main__":
 

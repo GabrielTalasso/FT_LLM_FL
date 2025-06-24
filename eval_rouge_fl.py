@@ -26,7 +26,7 @@ tokenize.NON_ALPHANUM_RE = re.compile(tokenize.NON_ALPHANUM_PATTERN)
 tokenize.VALID_TOKEN_PATTERN = r"^[\u0980-\u09FFa-z0-9]+$"
 tokenize.VALID_TOKEN_RE = re.compile(tokenize.VALID_TOKEN_PATTERN)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 def load_model(path, MODEL_NAME, DEVICE='cuda', adapter_name=None, global_dpa_path=None):
     bnb_config = BitsAndBytesConfig(
@@ -39,21 +39,28 @@ def load_model(path, MODEL_NAME, DEVICE='cuda', adapter_name=None, global_dpa_pa
     if adapter_name is not None:
         model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, quantization_config=bnb_config).to(DEVICE)
         model = PeftModel.from_pretrained(model, global_dpa_path, adapter_name='global').to(DEVICE)
-
         model = model.merge_and_unload()
+
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, padding_side="left")
+        if tokenizer.eos_token == tokenizer.unk_token or tokenizer.pad_token == tokenizer.eos_token:
+            tokenizer.add_special_tokens({'pad_token': '<pad>'})
+            print(f"Pad token is set to {tokenizer.pad_token}.")
+            model.resize_token_embeddings(len(tokenizer))
 
         ckpts = glob.glob(path)
         latest_ckpt = max(ckpts, key=os.path.getctime)
         latest_ckpt = latest_ckpt + '/local'
         print(f"Loading model from {latest_ckpt}")
         model = PeftModel.from_pretrained(model, latest_ckpt, adapter_name=adapter_name).to(DEVICE)
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, padding_side="left")
     else:
         model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, quantization_config=bnb_config).to(DEVICE)
-        model = PeftModel.from_pretrained(model, path).to(DEVICE)
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, padding_side="left")
+        if tokenizer.eos_token == tokenizer.unk_token or tokenizer.pad_token == tokenizer.eos_token:
+            tokenizer.add_special_tokens({'pad_token': '<pad>'})
+            print(f"Pad token is set to {tokenizer.pad_token}.")
+            model.resize_token_embeddings(len(tokenizer))
+        model = PeftModel.from_pretrained(model, path).to(DEVICE)
 
-    tokenizer.pad_token = tokenizer.eos_token
     return model, tokenizer
 
 def load_data(DATASET_NAME, tasks, eval=False):
@@ -219,12 +226,17 @@ def get_model_responses(model, tokenizer, dataset, batch_size=8):
     model_responses = []
     for i in tqdm(range(0, len(dataset), batch_size)):
         batch = dataset[i:i+batch_size]
-        tokenized = tokenizer(batch['inputs'],  padding='max_length',return_tensors='pt', truncation=True, max_length=1024)
+        #padding longest
+        tokenized = tokenizer(batch['inputs'],  padding='longest',return_tensors='pt', truncation=True, max_length=1024)
         input_ids = tokenized['input_ids'].to('cuda')
         attention_mask = tokenized['attention_mask'].to('cuda')
         #print(input_ids[0], input_ids[1])
         with torch.no_grad():
-            outputs = model.generate(input_ids=input_ids, attention_mask = attention_mask, max_new_tokens=1024, do_sample=False, use_cache=True, eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.pad_token_id)
+            print(f"Generating responses for batch {i//batch_size + 1}/{len(dataset)//batch_size + 1}")
+            outputs = model.generate(input_ids=input_ids, attention_mask = attention_mask, max_new_tokens=512, num_beams=1,
+                                      do_sample=False, use_cache=True, eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.pad_token_id,
+                                      )
+            print(outputs.shape, input_ids.shape)
             batch_responses = [tokenizer.decode(output, skip_special_tokens=True) for output in outputs]
             model_responses.extend(batch_responses)
     return model_responses
@@ -232,7 +244,7 @@ def get_model_responses(model, tokenizer, dataset, batch_size=8):
 def save_model_responses(dataset, model_responses, path):
     dataset.add_column('model_responses', model_responses)
     dataset.save_to_disk(path)
-from rouge_score import rouge_scorer
+
 def calcule_rogue1(model_responses, dataset):
     metric = evaluate.load("rouge")
     references = [dataset[i]['targets'] for i in range(len(dataset))]
@@ -371,13 +383,20 @@ if __name__ == "__main__":
     #                path_model_clustered + '/cluster_4_checkpoint-100', #clustered
     #]
 
-    path_model_clustered = 'output_aya/bracis/Llama-3.2-1B/clustered_menos_um_aya_dataset_clustered_c10s10_i10_b16a1_l1024_r8a16_20250422144813'
-    model_dict = {#'output_aya/bracis/Llama-3.2-1B/fedavg_lora32_aya_dataset_clustered_c10s10_i10_b16a1_l1024_r32a64_20250425132103/cluster_0_checkpoint-100': ['English', 'Dutch', 'Turkish', 'Portuguese', 'Spanish'],
-                    path_model_clustered + '/cluster_0_checkpoint-50': ['English'],
-                    path_model_clustered + '/cluster_1_checkpoint-50': ['Turkish'],
-                    path_model_clustered + '/cluster_2_checkpoint-50': ['Dutch'],
-                    path_model_clustered + '/cluster_3_checkpoint-50': ['Portuguese', 'Spanish'],}
-                    
+    path_model_clustered = 'output_aya/baselines_big/SmolLM-360M/Clustered_aya_dataset_clustered_c10s10_i10_b16a1_l1024_r8a16_20250611122526'
+    path_model_router = 'output_aya/baselines_big/SmolLM-360M/ROUTER2_aya_dataset_router_c10s10_i10_b16a1_l1024_r8a16_20250611120207'
+    model_dict = {'output_aya/baselines_big/SmolLM-360M/FedAvg_aya_dataset_clustered_c10s10_i10_b16a1_l1024_r8a16_20250611120134/cluster_0_checkpoint-10': ['English', 'Dutch', 'Turkish', 'Portuguese', 'Spanish'],
+                    path_model_clustered + '/cluster_0_checkpoint-10': ['Turkish'],
+                    path_model_clustered + '/cluster_1_checkpoint-10': ['English'],
+                    path_model_clustered + '/cluster_2_checkpoint-10': ['Dutch'],
+                    path_model_clustered + '/cluster_3_checkpoint-10': ['Spanish'],
+                    path_model_clustered + '/cluster_4_checkpoint-10': ['Portuguese'],
+                    path_model_router + '/cluster_0_checkpoint-10': ['Dutch'],
+                    path_model_router + '/cluster_1_checkpoint-10': ['Portuguese'],
+                    path_model_router + '/cluster_2_checkpoint-10': ['English'],
+                    path_model_router + '/cluster_3_checkpoint-10': ['Turkish'],
+                    path_model_router + '/cluster_4_checkpoint-10': ['Spanish'],
+                   }
 
     #path_model_clustered = 'output_aya/bracis/Llama-3.2-1B/clustered_sharedA_aya_dataset_clustered_c10s10_i10_b16a1_l1024_r8a16_20250418184928'
     #model_list = model_list + [path_model_clustered + '/cluster_0_checkpoint-100', #clustered
@@ -409,8 +428,8 @@ if __name__ == "__main__":
 
     #print(model_list, len(model_list))
 
-    #base_model = 'HuggingFaceTB/SmolLM-360M'
-    base_model = 'unsloth/Llama-3.2-1B'
+    base_model = 'HuggingFaceTB/SmolLM-360M'
+    #base_model = 'unsloth/Llama-3.2-1B'
     #base_model = 'unsloth/Llama-3.2-3B'
 
     #dataset_name = 'multitask'

@@ -1,7 +1,7 @@
 import random
 import numpy as np
 import torch
-from federated_learning.fed_clustered import calculate_similarity, make_clusters
+from federated_learning.fed_clustered import calculate_similarity, make_clusters, calculate_similarity_pair
 from federated_learning.fed_personalized import get_adapter
 
 def get_clients_this_round(fed_args, script_args, round):
@@ -196,14 +196,61 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
 
         return cluster_agg_models, global_auxiliary, idx
 
-    
-    elif fed_args.fed_alg == 'personalized':
+    elif fed_args.fed_alg == 'MTL':
+        #Federated Multi-task Learning
+
+        personalized_models = []
+        server_lr = 0.1
+        lamb = 0.5
+
+        for client in clients_this_round:
+            personalized_model = {}
+            others_term = 0
+            for key in global_dict.keys():
+                for other_client in clients_this_round:
+                    if 'lora_A' in key or 'lora_B' in key:
+
+                        similarity = calculate_similarity_pair(
+                            adapter1 = local_dict_list[client][key],
+                            adapter2 = local_dict_list[other_client][key]
+                        )
+                    
+                        others_term += (similarity * lamb * server_lr)*(local_dict_list[other_client][key] - local_dict_list[other_client][key])
+                    
+                personalized_model[key] = local_dict_list[client][key] + others_term
         
-        A, B = [], []
-        for c in clients_this_round:
-            a, b = get_adapter(path = script_args.output_dir, client = c, round = round, layer = 'all')
-            A.append(a)
-            B.append(b)
+            personalized_models.append(personalized_model)
+
+        
+        idx = np.array(range(fed_args.num_clients))
+
+        return personalized_models, global_auxiliary, idx
+
+    elif fed_args.fed_alg == 'FedSA':
+        # Federated Shared A: Aggregate A matrix and maintain B matrices per client. Returns a personalized model for each client.
+        
+        global_dict = global_dict[0] if isinstance(global_dict, list) else global_dict  # Ensure global_dict is a single dict
+
+        aggregated_A = {}
+        for key in global_dict.keys():
+            if 'lora_A' in key:
+                aggregated_A[key] = sum([local_dict_list[client][key] * sample_num_list[client] / sample_this_round for client in clients_this_round])
+        personalized_models = []
+
+        for client in clients_this_round:
+            personalized_model = {}
+            for key in global_dict.keys():
+                if 'lora_A' in key:
+                    personalized_model[key] = aggregated_A[key]
+                elif 'lora_B' in key:
+                    personalized_model[key] = local_dict_list[client][key]
+            personalized_models.append(personalized_model)
+        
+        idx = np.array(clients_this_round)
+        return personalized_models, global_auxiliary, idx
+
+    elif fed_args.fed_alg == 'personalized':
+        pass
 
         #not implemented yet =(
                 

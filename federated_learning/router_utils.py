@@ -66,6 +66,18 @@ def separate_data_into_clusters(sub_dataset, labels):
         cluster_dataset = sub_dataset.filter(lambda x: labels[x['index']] == i)
         clusters_datasets.append(cluster_dataset)
     return clusters_datasets
+
+def clusterize_dataset(embeddings, centroids):
+
+    infered_labels = []
+
+    for e in embeddings:
+        e = e.reshape(1, -1)
+        distances = np.linalg.norm(centroids - e, axis=1)
+        closest_centroid = np.argmin(distances)
+        infered_labels.append(closest_centroid)
+    
+    return np.array(infered_labels)
     
 def cluster_clients_centroids(client_embeddings_centers, num_clusters = 1):
     kmeans = KMeans(n_clusters=num_clusters)
