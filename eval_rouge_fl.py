@@ -26,7 +26,7 @@ tokenize.NON_ALPHANUM_RE = re.compile(tokenize.NON_ALPHANUM_PATTERN)
 tokenize.VALID_TOKEN_PATTERN = r"^[\u0980-\u09FFa-z0-9]+$"
 tokenize.VALID_TOKEN_RE = re.compile(tokenize.VALID_TOKEN_PATTERN)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "5"
 
 def load_model(path, MODEL_NAME, DEVICE='cuda', adapter_name=None, global_dpa_path=None):
     bnb_config = BitsAndBytesConfig(
@@ -227,7 +227,7 @@ def get_model_responses(model, tokenizer, dataset, batch_size=8):
     for i in tqdm(range(0, len(dataset), batch_size)):
         batch = dataset[i:i+batch_size]
         #padding longest
-        tokenized = tokenizer(batch['inputs'],  padding='longest',return_tensors='pt', truncation=True, max_length=1024)
+        tokenized = tokenizer(batch['inputs'],  padding='longest',return_tensors='pt', truncation=True, max_length=1024, padding_side='left')
         input_ids = tokenized['input_ids'].to('cuda')
         attention_mask = tokenized['attention_mask'].to('cuda')
         #print(input_ids[0], input_ids[1])
@@ -343,7 +343,7 @@ def evaluate_model(model_path, base_model, dataset_name, task, device, eval_len,
             json.dump(perplexity_results, f)
         results['perplexity'] = perplexity_results
 
-    with open(os.path.join(out_dir, "results.json"), 'w') as f:
+    with open(os.path.join(out_dir, "results_new.json"), 'w') as f:
         json.dump(results, f)
         
     print(f"Evaluation complete. Results saved to {out_dir}")
@@ -383,19 +383,19 @@ if __name__ == "__main__":
     #                path_model_clustered + '/cluster_4_checkpoint-100', #clustered
     #]
 
-    path_model_clustered = 'output_aya/baselines_big/SmolLM-360M/Clustered_aya_dataset_clustered_c10s10_i10_b16a1_l1024_r8a16_20250611122526'
+    path_model_clustered = 'output_aya/bracis/Llama-3.2-1B/clustered_round1_aya_dataset_clustered_c10s10_i10_b16a1_l1024_r8a16_20250418072606'
     path_model_router = 'output_aya/baselines_big/SmolLM-360M/ROUTER2_aya_dataset_router_c10s10_i10_b16a1_l1024_r8a16_20250611120207'
-    model_dict = {'output_aya/baselines_big/SmolLM-360M/FedAvg_aya_dataset_clustered_c10s10_i10_b16a1_l1024_r8a16_20250611120134/cluster_0_checkpoint-10': ['English', 'Dutch', 'Turkish', 'Portuguese', 'Spanish'],
-                    path_model_clustered + '/cluster_0_checkpoint-10': ['Turkish'],
-                    path_model_clustered + '/cluster_1_checkpoint-10': ['English'],
-                    path_model_clustered + '/cluster_2_checkpoint-10': ['Dutch'],
-                    path_model_clustered + '/cluster_3_checkpoint-10': ['Spanish'],
-                    path_model_clustered + '/cluster_4_checkpoint-10': ['Portuguese'],
-                    path_model_router + '/cluster_0_checkpoint-10': ['Dutch'],
-                    path_model_router + '/cluster_1_checkpoint-10': ['Portuguese'],
-                    path_model_router + '/cluster_2_checkpoint-10': ['English'],
-                    path_model_router + '/cluster_3_checkpoint-10': ['Turkish'],
-                    path_model_router + '/cluster_4_checkpoint-10': ['Spanish'],
+    model_dict = {#'output_aya/baselines_big/SmolLM-360M/FedAvg_aya_dataset_clustered_c10s10_i10_b16a1_l1024_r8a16_20250611120134/cluster_0_checkpoint-10': ['English', 'Dutch', 'Turkish', 'Portuguese', 'Spanish'],
+                    path_model_clustered + '/cluster_0_checkpoint-100': ['English'],
+                    path_model_clustered + '/cluster_1_checkpoint-100': ['Turkish'],
+                    path_model_clustered + '/cluster_2_checkpoint-100': ['Dutch'],
+                    path_model_clustered + '/cluster_3_checkpoint-100': ['Portuguese'],
+                    path_model_clustered + '/cluster_4_checkpoint-100': ['Spanish'],
+                    #path_model_router + '/cluster_0_checkpoint-10': ['Dutch'],
+                    #path_model_router + '/cluster_1_checkpoint-10': ['Portuguese'],
+                    #path_model_router + '/cluster_2_checkpoint-10': ['English'],
+                    #path_model_router + '/cluster_3_checkpoint-10': ['Turkish'],
+                    #path_model_router + '/cluster_4_checkpoint-10': ['Spanish'],
                    }
 
     #path_model_clustered = 'output_aya/bracis/Llama-3.2-1B/clustered_sharedA_aya_dataset_clustered_c10s10_i10_b16a1_l1024_r8a16_20250418184928'
@@ -428,8 +428,8 @@ if __name__ == "__main__":
 
     #print(model_list, len(model_list))
 
-    base_model = 'HuggingFaceTB/SmolLM-360M'
-    #base_model = 'unsloth/Llama-3.2-1B'
+    #base_model = 'HuggingFaceTB/SmolLM-360M'
+    base_model = 'unsloth/Llama-3.2-1B'
     #base_model = 'unsloth/Llama-3.2-3B'
 
     #dataset_name = 'multitask'

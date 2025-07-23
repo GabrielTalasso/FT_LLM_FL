@@ -26,7 +26,8 @@ class FedArguments:
     sim_round: Optional[int] = field(default=-1, metadata={"help": "Round to calculate the similarities. -1 means not calculate"})
     n_clusters: Optional[int] = field(default=5, metadata={"help": "the number of clusters for the clustered algorithm"})
     global_n_clusters: Optional[int] = field(default=5, metadata={"help": "the number of clusters for the global model"})
-    evaluation_rounds: Optional[int] = field(default=100, metadata={"help": "evaluation round"})
+    evaluation_rounds: Optional[str] = field(default="100", metadata={"help": "evaluation round"})
+    evaluation_mode: Optional[str] = field(default="global", metadata={"help": "global uses all clusters adapters, local uses only the local clusters adapter"})
 
 @dataclass
 class ScriptArguments:

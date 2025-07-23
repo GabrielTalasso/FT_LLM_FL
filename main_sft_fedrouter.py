@@ -9,7 +9,7 @@ from trl import DataCollatorForCompletionOnlyLM
 from peft import get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict, prepare_model_for_kbit_training
 
 from utils import *
-from utils.utils import default_evaluation
+from utils.utils import default_evaluation, save_dataset_test
 from federated_learning import *
 from federated_learning.router_utils import *
 from config import get_config, save_config, get_model_config, get_training_args
@@ -64,7 +64,7 @@ proxy_dict, opt_proxy_dict = get_proxy_dict(fed_args, global_dict)
 global_auxiliary, auxiliary_model_list, auxiliary_delta_dict = get_auxiliary_dict(fed_args, global_dict)
 
 # ===== Define the tokenizer =====
-tokenizer = AutoTokenizer.from_pretrained(script_args.model_name_or_path, use_fast=False, padding_side="right")
+tokenizer = AutoTokenizer.from_pretrained(script_args.model_name_or_path, use_fast=False, padding_side="left")
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.unk_token   # following vicuna
 
@@ -101,6 +101,7 @@ for round in tqdm(range(fed_args.num_rounds)):
 
     print(f">> ==================== Round {round+1} : {clients_this_round} ====================")
     
+    global_clusters_this_round = [] ###
     for client in range(fed_args.num_clients):
 
         if client not in clients_this_round:
@@ -114,27 +115,83 @@ for round in tqdm(range(fed_args.num_rounds)):
                             num_clusters = fed_args.n_clusters
                             )
 
-            local_datasets[client] = local_datasets[client].add_column('cluster_label', data_cluster_labels[client])
-
+            if fed_args.fed_alg == 'router_oracle':
+                dict_labels = {task: i for i, task in enumerate(np.unique(local_datasets[client]['task']))}
+                oracle_labels = [dict_labels[task] for task in local_datasets[client]['task']]
+                local_datasets[client] = local_datasets[client].add_column('cluster_label', oracle_labels)
+            else:
+                local_datasets[client] = local_datasets[client].add_column('cluster_label', data_cluster_labels[client])
+        
         print(f"Client {client} embeddings center shape: {client_embeddings_centers[client].shape}")
+        print(f"Client {client} data cluster labels: {np.unique(data_cluster_labels[client])}")
 
         sub_dataset = get_dataset_this_round(local_datasets[client], round, fed_args, script_args)
         sub_dataset_test = local_datasets_test[client]
         sub_dataset_test = sub_dataset_test.shuffle(seed=round).select(range(script_args.max_eval_size) if script_args.max_eval_size < len(sub_dataset_test) else range(len(sub_dataset_test)))
 
-        if (round+1) == fed_args.evaluation_rounds:
+        if (round+1) in [int(x) for x in fed_args.evaluation_rounds.split(",")]:
+            
             test_embeddings = get_client_embedding(script_args, fed_args, sub_dataset_test)
-            infered_cluster_labels = clusterize_dataset(test_embeddings, global_centroids)
+            #save all test embeddings for the client
+            test_embeddings_path = os.path.join(script_args.output_dir, f"clients_test_datasets/embeddings/test_embeddings_{client}_round_{round+1}.npy")
+            os.makedirs(os.path.dirname(test_embeddings_path),
+                        exist_ok=True)
+            np.save(test_embeddings_path, test_embeddings)
+
+            if fed_args.evaluation_mode == 'global':
+                print("Global evaluation mode: using all clusters adapters")
+                infered_cluster_labels = clusterize_dataset(test_embeddings, global_centroids)
+
+            if fed_args.evaluation_mode == 'local':
+                test_global_clusters = []
+                for c_embed_center in client_embeddings_centers[client]:
+                    test_global_clusters.append(get_most_similar_adapter(global_centroids, global_clusters, c_embed_center))
+
+                print(f"Test global clusters: {test_global_clusters}")
+                infered_cluster_labels = clusterize_dataset(test_embeddings, global_centroids[test_global_clusters])
+
+                #mapping the labels to the global clusters
+                infered_cluster_labels = [test_global_clusters[label] for label in infered_cluster_labels]
+
             sub_dataset_test = sub_dataset_test.add_column('cluster_label', infered_cluster_labels)
             print(f"Detected clusters in the test set for client {client}: {np.unique(infered_cluster_labels)}")
+            save_dataset_test(sub_dataset_test, script_args, client, round)
+
+            for c in np.unique(infered_cluster_labels):
+                # Evaluate for all global cluster (a client can have data from a diverse domain - test time personalization - generability)
+                #global_centroid_id = get_most_similar_adapter(global_centroids, global_clusters, client_embeddings_centers[client][c])
+                set_peft_model_state_dict(model, global_dict[c])
+                test_dataset_this_cluster = sub_dataset_test.filter(lambda x: x['cluster_label'] == c)
+
+                print(f"Evaluating client {client} on the test set with size {len(test_dataset_this_cluster)} for cluster {c} in round {round}...")
+                default_evaluation(
+                    model=model,
+                    tokenizer=tokenizer,
+                    dataset=test_dataset_this_cluster,
+                    client_id=client,
+                    round=round, #with respect to model from the previous round
+                    formatting_prompts_func=formatting_prompts_func,
+                    script_args=script_args,
+                    cluster_id=c,
+                )
 
         local_dict_list[client] = []
         training_loss_aux = []
         
         print('Length of global_dict: ', len(global_dict))
+
+        #RANDOM CLUSTER SELECTION
+        #selected_cluster = np.random.choice(np.arange(fed_args.n_clusters), size=1, replace=True)[0] ###
+
+        #ROUND ROBIN CLUSTER SELECTION
+        selected_cluster = round % fed_args.n_clusters ###
+
         for c in range(fed_args.n_clusters):
-            cluster_dataset = sub_dataset.filter(lambda x: x['cluster_label'] == c)
-            
+            #cluster_dataset = sub_dataset.filter(lambda x: x['cluster_label'] == c)
+
+            cluster_dataset = local_datasets[client].filter(lambda x: x['cluster_label'] == c).shuffle(seed=round) ###
+            cluster_dataset = get_dataset_this_round(cluster_dataset, round, fed_args, script_args) ###
+
             #starts with global model
             print(f'Setting parameters for client {client}...')
             if round >= 1:
@@ -150,23 +207,7 @@ for round in tqdm(range(fed_args.num_rounds)):
             training_args = get_training_args(script_args, new_lr)
             
             ajusted_max_steps = (len(cluster_dataset) / len(sub_dataset)) * script_args.max_steps
-            training_args.max_steps = max(floor(ajusted_max_steps), 1)
-
-            if (round+1) == fed_args.evaluation_rounds:
-                
-                global_centroid_id = get_most_similar_adapter(global_centroids, global_clusters, client_embeddings_centers[client][c])
-                test_dataset_this_cluster = sub_dataset_test.filter(lambda x: x['cluster_label'] == global_centroid_id)
-
-                print(f"Evaluating client {client} on the test set with size {len(test_dataset_this_cluster)} for round {round}...")
-                router_evaluation(
-                    model=model,
-                    tokenizer=tokenizer,
-                    dataset=test_dataset_this_cluster,
-                    client_id=client,
-                    round=round+1,
-                    formatting_prompts_func=formatting_prompts_func,
-                    script_args=script_args
-                )
+            training_args.max_steps = script_args.max_steps# max(floor(ajusted_max_steps), 1) ###
 
             print(f"Training for {len(cluster_dataset)} samples in cluster {c} for client {client} with {training_args.max_steps} steps...")
 
@@ -185,11 +226,19 @@ for round in tqdm(range(fed_args.num_rounds)):
                 packing=packing
                 )
 
-            results = trainer.train()
-            training_loss_aux.append(results.training_loss)
-
-            local_dict_list[client].append(copy.deepcopy(get_peft_model_state_dict(model)))
-            
+            if round >= 1:
+                if c == selected_cluster: ###
+                    results = trainer.train()
+                    training_loss_aux.append(results.training_loss)
+                    local_dict_list[client].append(copy.deepcopy(get_peft_model_state_dict(model)))
+                    print('Most similar global adapter for client', client, 'in cluster', c, 'is:', get_most_similar_adapter(global_centroids, global_clusters, client_embeddings_centers[client][c]))
+                    global_clusters_this_round.append(get_most_similar_adapter(global_centroids, global_clusters, client_embeddings_centers[client][c]))
+            else:
+                results = trainer.train()
+                training_loss_aux.append(results.training_loss)
+                local_dict_list[client].append(copy.deepcopy(get_peft_model_state_dict(model)))
+                #global_clusters_this_round.append(global_dict[c])
+                
         training_loss[client].append(np.mean(training_loss_aux))
     
     if round == 0:
@@ -216,6 +265,8 @@ for round in tqdm(range(fed_args.num_rounds)):
         os.makedirs(os.path.dirname(clusters_path), exist_ok=True)
         np.save(clusters_path, global_clusters)
 
+        for c in range(fed_args.num_clients):
+            local_datasets[c].save_to_disk(os.path.join(script_args.output_dir, f"clients_train_datasets/client_{c}_round_{round}"))
 
     #Flattening the local_dict_list
     all_local_dict_list = []
@@ -226,17 +277,18 @@ for round in tqdm(range(fed_args.num_rounds)):
     print("Length of all_local_dict_list: ", len(all_local_dict_list))
 
     #Getting only the global clusters and adapters for clients this round 
-    global_clusters_this_round = []
-    local_dict_list_this_round = []
-    for i in range(0, len(global_clusters), fed_args.n_clusters):
-        if i // fed_args.n_clusters in clients_this_round:
-            global_clusters_this_round += global_clusters[i:i+fed_args.n_clusters].tolist()
-            local_dict_list_this_round += all_local_dict_list[i:i+fed_args.n_clusters]
+    if round == 0:
+        global_clusters_this_round = []
+        local_dict_list_this_round = []
+        for i in range(0, len(global_clusters), fed_args.n_clusters):
+            if i // fed_args.n_clusters in clients_this_round:
+                global_clusters_this_round += global_clusters[i:i+fed_args.n_clusters].tolist()
+                local_dict_list_this_round += all_local_dict_list[i:i+fed_args.n_clusters]
 
     # ===== Server aggregates the local models =====
     
-    global_dict, global_auxiliary, idx = global_aggregate(
-            fed_args, script_args, global_dict, local_dict_list_this_round, sample_num_list, \
+    global_dict, global_auxiliary, idx = global_aggregate( ###
+            fed_args, script_args, global_dict, all_local_dict_list, sample_num_list, \
             clients_this_round, round, proxy_dict=proxy_dict, \
             opt_proxy_dict=opt_proxy_dict,
             auxiliary_info=(global_auxiliary, auxiliary_delta_dict),

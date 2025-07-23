@@ -30,7 +30,7 @@ def cosine_learning_rate(current_round, total_rounds, initial_lr=0.001, min_lr=0
     return cosine_lr
 
 def apply_template_to_dataset(dataset, formatting_prompts_func):
-    dataset = dataset.map(lambda x: {'inputs': formatting_prompts_func(x), 'targets': x['response']})
+    dataset = dataset.map(lambda x: {'inputs': formatting_prompts_func(x).split("### Response: ")[0] + "### Response: ", 'targets': x['response']})
     return dataset
 
 def get_model_responses(model, tokenizer, dataset, batch_size=8):
@@ -59,13 +59,14 @@ def calcule_rogue1(model_responses, dataset):
     scores = metric.compute(predictions=predictions, references=references)
     return scores
 
-def default_evaluation(model, tokenizer, dataset, client_id, round, formatting_prompts_func, script_args):
+def default_evaluation(model, tokenizer, dataset, client_id, round, formatting_prompts_func, script_args, cluster_id=None):
     """
     Default evaluation function to compute model responses and ROUGE scores.
     """
     print("Evaluating model...")
     # Apply template to dataset
     dataset = apply_template_to_dataset(dataset, formatting_prompts_func)
+    dataset_length = len(dataset)
     eval_responses = get_model_responses(model, tokenizer, dataset, batch_size=script_args.eval_batch_size)
     dataset_with_responses = dataset.select(range(len(dataset)))
     dataset_with_responses = dataset_with_responses.add_column('model_responses', eval_responses)
@@ -76,22 +77,16 @@ def default_evaluation(model, tokenizer, dataset, client_id, round, formatting_p
     if not os.path.exists(os.path.join(script_args.output_dir, "evals")):
         os.makedirs(os.path.join(script_args.output_dir, "evals"))
     # Save evaluation results
-    with open(os.path.join(script_args.output_dir, f"evals/rouge_client_{client_id}_round_{round}.json"), 'w') as f:
+    with open(os.path.join(script_args.output_dir, f"evals/rouge_client_{client_id}_cluster_{cluster_id}_round_{round+1}.json"), 'w') as f:
+        scores['dataset_length'] = dataset_length
         json.dump(scores, f, indent=4)
+
+
+def save_dataset_test(dataset, script_args, client_id, round):
+    """
+    Save the test dataset for a specific client and round.
+    """
+    if not os.path.exists(os.path.join(script_args.output_dir, "clients_test_datasets")):
+        os.makedirs(os.path.join(script_args.output_dir, "clients_test_datasets"))
     
-
-def router_evaluation(model, tokenizer, dataset, client_id, round, formatting_prompts_func, script_args):
-   pass
-
-if __name__ == "__main__":
-
-    # Example usage:
-    num_rounds = 300
-    initial_lr = 5e-5
-    min_lr = 1e-6
-
-    lr_list = []
-    for round in range(num_rounds):
-        lr = cosine_learning_rate(round, num_rounds, initial_lr, min_lr)
-        lr_list.append(lr)
-        print(f"Round {round + 1}/{num_rounds}, Learning Rate: {lr:.8f}")
+    dataset.save_to_disk(os.path.join(script_args.output_dir, f"clients_test_datasets/client_{client_id}_round_{round}"))

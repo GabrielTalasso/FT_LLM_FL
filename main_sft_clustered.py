@@ -11,7 +11,7 @@ from trl import DataCollatorForCompletionOnlyLM
 from peft import get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict, prepare_model_for_kbit_training
 
 from utils import *
-from utils.utils import default_evaluation
+from utils.utils import default_evaluation, save_dataset_test
 from federated_learning import *
 from config import get_config, save_config, get_model_config, get_training_args
 
@@ -64,7 +64,7 @@ proxy_dict, opt_proxy_dict = get_proxy_dict(fed_args, global_dict)
 global_auxiliary, auxiliary_model_list, auxiliary_delta_dict = get_auxiliary_dict(fed_args, global_dict)
 
 # ===== Define the tokenizer =====
-tokenizer = AutoTokenizer.from_pretrained(script_args.model_name_or_path, use_fast=False, padding_side="right")
+tokenizer = AutoTokenizer.from_pretrained(script_args.model_name_or_path, use_fast=False, padding_side="left")
 if tokenizer.pad_token is None:
     print(f"Pad token is not set, setting it to {tokenizer.unk_token}.")
     tokenizer.pad_token = tokenizer.unk_token
@@ -104,13 +104,13 @@ for round in tqdm(range(fed_args.num_rounds)):
         if client not in clients_this_round:
             training_loss[client].append(-1)            # -1 is an indicator of not training
             continue
-        
-        print(f'Setting parameters for client {client}...')
 
         if round > fed_args.sim_round:
+            print(f'Setting parameters for client {client} with cluster {idx[client] - 1}...')
             set_peft_model_state_dict(model, global_dict[idx[client] - 1])
 
         else:
+            print(f'Setting parameters for client {client}...')
             set_peft_model_state_dict(model, global_dict)   # sync the global model to the local model
 
         sub_dataset = get_dataset_this_round(local_datasets[client], round, fed_args, script_args)      # get the required sub-dataset for this round
@@ -120,16 +120,18 @@ for round in tqdm(range(fed_args.num_rounds)):
         if not os.path.exists(os.path.join(script_args.output_dir, "clients_adapters")):
             os.makedirs(os.path.join(script_args.output_dir, "clients_adapters"))
 
-        if (round+1) == fed_args.evaluation_rounds:
-            print(f"Evaluating client {client} on the test set with size {len(sub_dataset_test)} for round {round}...")
+        if (round+1) in [int(x) for x in fed_args.evaluation_rounds.split(",")]:
+            save_dataset_test(sub_dataset_test, script_args, client, round)
+            print(f"Evaluating client {client} on the test set with size {len(sub_dataset_test)} for cluster {idx[client] - 1} in round {round}...")
             default_evaluation(
                 model=model,
                 tokenizer=tokenizer,
                 dataset=sub_dataset_test,
                 client_id=client,
-                round=round+1,
+                round=round,
                 formatting_prompts_func=formatting_prompts_func,
-                script_args=script_args
+                script_args=script_args,
+                cluster_id= idx[client] - 1
             )
                         
         new_lr = cosine_learning_rate(round, fed_args.num_rounds, script_args.learning_rate, 1e-5)      # manually schedule the learning rate
@@ -167,8 +169,11 @@ for round in tqdm(range(fed_args.num_rounds)):
         local_dict_list[client] = copy.deepcopy(get_peft_model_state_dict(model))   # copy is needed!
 
         # ===== Save the model =====
-        if (round+1) == fed_args.sim_round:
+        if fed_args.fed_alg == 'MTL':
             trainer.save_model(os.path.join(script_args.output_dir, f"clients_adapters/checkpoint-{round+1}_client{client}"))
+        else:
+            if (round+1) == fed_args.sim_round:
+                trainer.save_model(os.path.join(script_args.output_dir, f"clients_adapters/checkpoint-{round+1}_client{client}"))
 
     # ===== Server aggregates the local models =====
 
@@ -185,6 +190,8 @@ for round in tqdm(range(fed_args.num_rounds)):
 
         # ===== Save the model =====
         if (round+1) % fed_args.save_model_freq == 0:
+            trainer.save_model(os.path.join(script_args.output_dir, f"checkpoint-{round+1}"))
+        if fed_args.fed_alg == 'MTL':
             trainer.save_model(os.path.join(script_args.output_dir, f"checkpoint-{round+1}"))
         
         np.save(os.path.join(script_args.output_dir, "training_loss.npy"), np.array(training_loss))

@@ -33,7 +33,7 @@ def load_model(path, MODEL_NAME, DEVICE):
                                                     device_map={"": Accelerator().local_process_index})
 
     model = PeftModel.from_pretrained(model, path).to(DEVICE)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, device=DEVICE, use_fast=False, padding_side="right")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, device=DEVICE, use_fast=False, padding_side="left")
     tokenizer.pad_token = tokenizer.unk_token
 
     return model, tokenizer

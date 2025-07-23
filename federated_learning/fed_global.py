@@ -155,10 +155,9 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
             #    for k, v in aggregated_A.items():
             #        c_dict[k] = v
 
-
             return cluster_agg_models, global_auxiliary, idx
 
-    elif fed_args.fed_alg in ['router']:
+    elif fed_args.fed_alg in ['router', 'router_oracle']:
 
         n_clusters = fed_args.global_n_clusters
 
@@ -179,11 +178,6 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
         # Aggregate models within each cluster ------------------------------
         cluster_agg_models = [] 
 
-        #print(clusters_models.keys())
-        #print(len(clusters_models[0]))
-        #print(len(clusters_models[0][0]))
-        #print(round)
-
         for cluster in range(n_clusters):
             cluster_dict = {}
             if round == 0:
@@ -194,37 +188,72 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
                     cluster_dict[key] = sum([model[key] for model in clusters_models[cluster][0]]) / len(clusters_models[cluster][0])
             cluster_agg_models.append(cluster_dict)
 
+        # Aggregate only the A LoRA adapter across clusters, keep B per cluster
+        # find all A-keys
+        #for cluster in range(n_clusters):
+        #    a_keys = [k for k in cluster_agg_models[cluster].keys() if 'lora_A' in k]
+        #    # compute cross-cluster average for A
+        #    aggregated_A = {
+        #        k: sum(c[k] for c in cluster_agg_models) / len(cluster_agg_models)
+        #        for k in a_keys
+        #    }
+        #    # replace A in each cluster model
+        #    for c_dict in cluster_agg_models:
+        #        for k, v in aggregated_A.items():
+        #            c_dict[k] = v
+
         return cluster_agg_models, global_auxiliary, idx
 
     elif fed_args.fed_alg == 'MTL':
-        #Federated Multi-task Learning
 
-        personalized_models = []
-        server_lr = 0.1
-        lamb = 0.5
-
-        for client in clients_this_round:
-            personalized_model = {}
-            others_term = 0
+        if round < fed_args.sim_round: # Normal dataset-size-based aggregation 
             for key in global_dict.keys():
-                for other_client in clients_this_round:
-                    if 'lora_A' in key or 'lora_B' in key:
-
-                        similarity = calculate_similarity_pair(
-                            adapter1 = local_dict_list[client][key],
-                            adapter2 = local_dict_list[other_client][key]
-                        )
-                    
-                        others_term += (similarity * lamb * server_lr)*(local_dict_list[other_client][key] - local_dict_list[other_client][key])
-                    
-                personalized_model[key] = local_dict_list[client][key] + others_term
+              global_dict[key] = sum([local_dict_list[client][key] * sample_num_list[client] / sample_this_round for client in clients_this_round])
         
-            personalized_models.append(personalized_model)
+        elif round >= fed_args.sim_round:
+            
+            #Calculating a global model for create the delta of weights this round
+            aggregate_all_models = {}
+            if round == fed_args.sim_round:
+                for key in global_dict.keys():
+                    aggregate_all_models[key] = sum([local_dict_list[client][key] * sample_num_list[client] / sample_this_round for client in clients_this_round])
+            else:
+                for key in global_dict[0].keys():
+                    aggregate_all_models[key] = sum([local_dict_list[client][key] * sample_num_list[client] / sample_this_round for client in clients_this_round])
 
-        
-        idx = np.array(range(fed_args.num_clients))
+            #calcule similarity based on the previous differences
+            similarity_A, similarity_B = calculate_similarity(path = script_args.output_dir,
+                                                            n_clients = fed_args.num_clients,
+                                                            round = round,
+                                                            adapter_global=aggregate_all_models)
+            
+            #aggregate the models based on the similarity (MTL)
+            personalized_models = []
+            for client in clients_this_round:
 
-        return personalized_models, global_auxiliary, idx
+                personalized_model = {}
+                weights = similarity_B[client] / sum(similarity_B[client])  # Normalize weights
+
+                if round == fed_args.sim_round:
+                    # Initialize with global model
+                    for key in global_dict.keys():
+                        if 'lora_A' in key:
+                            personalized_model[key] = sum([weights[i] * local_dict_list[i][key] for i in range(fed_args.num_clients)])
+                        elif 'lora_B' in key:
+                            personalized_model[key] = sum([weights[i] * local_dict_list[i][key] for i in range(fed_args.num_clients)])
+                        
+                    personalized_models.append(personalized_model)
+
+                else:
+                    for key in global_dict[0].keys():
+                        if 'lora_A' in key:
+                            personalized_model[key] = sum([weights[i] * local_dict_list[i][key] for i in range(fed_args.num_clients)])
+                        elif 'lora_B' in key:
+                            personalized_model[key] = sum([weights[i] * local_dict_list[i][key] for i in range(fed_args.num_clients)])
+                    personalized_models.append(personalized_model)
+
+            idx = np.array(clients_this_round) + np.ones_like(clients_this_round)
+            return personalized_models, global_auxiliary, idx
 
     elif fed_args.fed_alg == 'FedSA':
         # Federated Shared A: Aggregate A matrix and maintain B matrices per client. Returns a personalized model for each client.
@@ -245,8 +274,8 @@ def global_aggregate(fed_args, script_args, global_dict, local_dict_list,
                 elif 'lora_B' in key:
                     personalized_model[key] = local_dict_list[client][key]
             personalized_models.append(personalized_model)
-        
-        idx = np.array(clients_this_round)
+
+        idx = np.array(clients_this_round) + np.ones_like(clients_this_round)
         return personalized_models, global_auxiliary, idx
 
     elif fed_args.fed_alg == 'personalized':
